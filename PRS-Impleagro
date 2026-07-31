@@ -1,0 +1,262 @@
+# PRS.md — Product Requirements Specification
+## Catálogo Inteligente de Peças Agrícolas
+
+**Versão:** 0.1
+**Status:** Documento oficial de referência do produto
+
+---
+
+## 1. Visão Geral
+
+O **Catálogo Inteligente de Peças Agrícolas** é uma plataforma web para consulta técnica de catálogos de peças de implementos agrícolas. Ele transforma catálogos em PDF — hoje difíceis de navegar — em uma experiência interativa de consulta, sem nunca alterar o documento original.
+
+O PDF permanece intacto. Toda informação adicional (peças, marcações, metadados) é armazenada separadamente e sobreposta ao documento em uma camada independente.
+
+O sistema é **multi-fabricante** por definição: nenhuma regra, campo ou fluxo pode ser criado pensando em uma marca específica.
+
+---
+
+## 2. Problema que o Sistema Resolve
+
+Hoje, localizar uma peça em um catálogo agrícola significa folhear manualmente um PDF extenso, sem busca eficaz, sem histórico de consulta e sem vínculo direto entre o desenho explodido e os dados da peça (código, descrição, quantidade).
+
+Isso gera:
+- Tempo alto para localizar uma peça.
+- Erros de identificação (peça errada, código errado).
+- Dependência de conhecimento manual do catalogador/vendedor.
+- Nenhuma reutilização de informação entre catálogos semelhantes.
+
+---
+
+## 3. Objetivos do Produto
+
+- Reduzir o tempo de localização de uma peça em um catálogo técnico.
+- Criar uma camada de consulta interativa sobre o PDF original, sem modificá-lo.
+- Padronizar o cadastro de peças de forma estruturada e reutilizável.
+- Permitir crescimento para múltiplos fabricantes, modelos e catálogos.
+- Preparar a base técnica para funcionalidades futuras (IA, OCR, compatibilidade, estoque) sem retrabalho estrutural.
+
+### 3.1 Diferenciais
+- Não substitui o PDF — o preserva como fonte da verdade.
+- Marcações desacopladas do documento (camada independente).
+- Arquitetura pensada desde o início para múltiplos fabricantes.
+- Construído inteiramente com ferramentas gratuitas e 100% online.
+
+### 3.2 Visão de Longo Prazo
+Tornar-se uma plataforma de referência para consulta técnica de peças agrícolas, com reconhecimento automático de conteúdo, inteligência artificial aplicada à busca e integração com processos de estoque e orçamento das empresas usuárias.
+
+---
+
+## 4. Público-Alvo
+
+| Perfil | Responsabilidade principal |
+|---|---|
+| **Administrador** | Cadastra fabricantes, modelos, catálogos e peças; realiza marcações no PDF; mantém a documentação técnica do sistema. |
+| **Empresa / Concessionária** | Utiliza a plataforma como ferramenta interna de consulta e suporte à venda de peças. |
+| **Revenda** | Consulta catálogos de múltiplos fabricantes para atendimento ao cliente final. |
+| **Oficina / Mecânico** | Consulta peças durante manutenção e reparo de implementos. |
+| **Balconista** | Consulta rápida de código e descrição para atendimento no balcão. |
+| **Cliente Final** | Consulta o catálogo de forma autônoma, sem permissão de edição. |
+
+Apenas o perfil **Administrador** possui permissão de escrita (cadastro e marcação). Todos os demais perfis operam em modo de consulta.
+
+---
+
+## 5. Casos de Uso
+
+| Caso de uso | Perfil responsável |
+|---|---|
+| Cadastrar fabricante | Administrador |
+| Cadastrar modelo | Administrador |
+| Cadastrar catálogo | Administrador |
+| Enviar PDF do catálogo | Administrador |
+| Consultar catálogo | Todos os perfis de consulta |
+| Pesquisar peça por código ou descrição | Todos os perfis de consulta |
+| Visualizar detalhes de uma peça | Todos os perfis de consulta |
+| Editar cadastro de peça | Administrador |
+| Criar marcação sobre o PDF | Administrador |
+| Editar marcação existente | Administrador |
+| Consultar compatibilidade entre modelos | Todos os perfis de consulta *(futuro)* |
+| Adicionar fotos da peça | Administrador *(futuro)* |
+| Adicionar documentos técnicos da peça | Administrador *(futuro)* |
+| Adicionar vídeos da peça | Administrador *(futuro)* |
+
+---
+
+## 6. Requisitos Funcionais
+
+### Cadastro
+- **RF-001** — O sistema deve permitir cadastrar fabricantes.
+- **RF-002** — O sistema deve permitir cadastrar modelos vinculados a um fabricante.
+- **RF-003** — O sistema deve permitir cadastrar catálogos vinculados a um modelo.
+- **RF-004** — O sistema deve permitir vincular um arquivo PDF a um catálogo.
+- **RF-005** — O sistema deve permitir cadastrar peças vinculadas a um catálogo.
+
+### Consulta
+- **RF-006** — O sistema deve permitir navegar de fabricante para modelo, e de modelo para catálogo.
+- **RF-007** — O sistema deve exibir o PDF original sem qualquer alteração visual em seu conteúdo.
+- **RF-008** — O sistema deve permitir navegação entre páginas do catálogo.
+- **RF-009** — O sistema deve exibir os dados de uma peça ao selecionar sua marcação.
+
+### Pesquisa *(futuro)*
+- **RF-010** — O sistema deverá permitir buscar uma peça por código.
+- **RF-011** — O sistema deverá permitir buscar uma peça por descrição.
+- **RF-012** — O sistema deverá destacar automaticamente a peça encontrada na página correspondente.
+
+### Workspace
+- **RF-013** — O sistema deve oferecer um ambiente de trabalho unificado para o administrador gerenciar catálogos.
+
+### Visualizador de PDF
+- **RF-014** — O sistema deve permitir zoom sobre o documento.
+- **RF-015** — O sistema deve permitir ajuste automático da página à largura da tela.
+- **RF-016** — O sistema deve exibir miniaturas das páginas do catálogo.
+- **RF-017** — O sistema deve indicar a página atual e o total de páginas.
+
+### Marcações
+- **RF-018** — O sistema deve permitir que o administrador registre uma marcação sobre qualquer ponto do desenho.
+- **RF-019** — Cada marcação deve estar vinculada a uma peça (item, código, descrição, quantidade, observações).
+- **RF-020** — As marcações devem ser renderizadas em uma camada independente, nunca desenhadas sobre o arquivo PDF.
+- **RF-021** — O sistema deve permitir editar uma marcação existente *(futuro)*.
+
+### Compatibilidade *(futuro)*
+- **RF-022** — O sistema deverá permitir associar uma mesma peça a múltiplos modelos ou implementos.
+
+### Administração
+- **RF-023** — O sistema deve oferecer uma área interna (Central de Desenvolvimento) para acompanhamento do roadmap e status técnico do projeto.
+- **RF-024** — O status de módulos, versões e documentação exibidos na área interna devem ser configuráveis via banco de dados, nunca fixos em código.
+
+### Documentação
+- **RF-025** — O sistema deve manter documentação técnica modular, em Markdown, acessível a partir da área interna.
+
+### Configurações
+- **RF-026** — O sistema deve permitir a configuração de dados de conexão (Supabase) sem exigir alteração estrutural do código.
+
+---
+
+## 7. Requisitos Não Funcionais
+
+- **RNF-001 (Performance)** — A abertura de uma página do catálogo não deve exigir reprocessamento do arquivo PDF original.
+- **RNF-002 (Escalabilidade)** — A estrutura de dados deve suportar milhares de catálogos e múltiplos fabricantes sem alteração de schema.
+- **RNF-003 (Segurança)** — Dados de escrita (cadastro e marcação) devem ser restritos a usuários administradores *(autenticação a ser implementada em fase futura)*.
+- **RNF-004 (Usabilidade)** — O sistema deve ser utilizável por pessoas sem conhecimento técnico avançado, tanto na consulta quanto na administração.
+- **RNF-005 (Compatibilidade)** — O sistema deve funcionar nos principais navegadores modernos, sem necessidade de instalação local.
+- **RNF-006 (Disponibilidade)** — O sistema deve operar em infraestrutura online, sem dependência de execução local.
+- **RNF-007 (Backup)** — Os dados estruturados devem residir em um banco de dados gerenciado com backup automático (Supabase/PostgreSQL).
+- **RNF-008 (Arquitetura)** — O sistema deve ser modular, com separação clara entre camada de dados, camada de visualização e camada de administração.
+- **RNF-009 (Portabilidade)** — Nenhuma funcionalidade deve depender de tecnologia paga ou proprietária.
+- **RNF-010 (Responsividade)** — As telas de consulta devem se adaptar a diferentes tamanhos de tela.
+
+---
+
+## 8. Restrições
+
+- O PDF original nunca poderá ser alterado, editado ou recomposto.
+- Todas as tecnologias utilizadas devem ser gratuitas ou possuir plano gratuito suficiente para o estágio atual do produto.
+- Todo código deve ser modular e reutilizável.
+- O banco de dados oficial é PostgreSQL, hospedado via Supabase.
+- O frontend é construído em HTML, CSS e JavaScript, sem dependência obrigatória de ferramentas de build.
+- O sistema deve funcionar inteiramente em navegador, sem instalação local.
+
+---
+
+## 9. Escopo do MVP
+
+### Faz parte do MVP
+- Cadastro de fabricantes, modelos e catálogos.
+- Navegação hierárquica entre fabricante → modelo → catálogo.
+- Visualização do PDF original no navegador (zoom, navegação de página, miniaturas).
+- Cadastro manual de peças vinculado a um catálogo.
+- Criação de marcações sobre o PDF, em camada independente.
+- Modo Administrador (cria marcações) e Modo Consulta (visualiza marcações).
+- Área interna (Central de Desenvolvimento) com dashboard de status do projeto.
+
+### Não faz parte do MVP
+- OCR e reconhecimento automático de peças.
+- Inteligência artificial aplicada à busca ou análise de catálogos.
+- Busca semântica.
+- Compatibilidade automática entre modelos.
+- Fotos, documentos e vídeos vinculados à peça.
+- Edição e exclusão de marcações.
+- Integração com ERP ou controle de estoque.
+- Geração de orçamento.
+- API pública.
+- Autenticação de usuários (login/permissões).
+
+---
+
+## 10. Visão de Longo Prazo *(não implementado)*
+
+- Reconhecimento automático de peças via OCR.
+- Inteligência artificial para leitura e análise de catálogos.
+- Busca semântica por descrição.
+- Compatibilidade automática entre modelos e fabricantes.
+- Integração com sistemas de ERP.
+- Controle de estoque vinculado às peças.
+- API pública para integração externa.
+- Importação automática de catálogos.
+- Extração automática de tabelas de peças a partir do PDF.
+
+---
+
+## 11. Critérios de Sucesso
+
+- Redução mensurável do tempo médio para localizar uma peça em relação à consulta manual do PDF.
+- Quantidade de catálogos e fabricantes suportados simultaneamente sem degradação de desempenho.
+- Tempo de resposta na abertura de um catálogo e no carregamento de marcações.
+- Nível de precisão do posicionamento das marcações sobre o desenho original.
+- Facilidade de uso percebida por administradores sem experiência avançada em programação.
+- Capacidade do sistema de crescer (novos módulos) sem necessidade de reestruturação do banco de dados.
+
+---
+
+## 12. Glossário
+
+| Termo | Definição |
+|---|---|
+| **Fabricante** | Empresa responsável pela fabricação do implemento agrícola. |
+| **Modelo** | Variante específica de um implemento produzido por um fabricante. |
+| **Catálogo** | Documento (PDF) de peças referente a um modelo específico. |
+| **Peça** | Item individual cadastrado dentro de um catálogo, com código, descrição, quantidade e observações. |
+| **Marcação** | Ponto registrado sobre o desenho do PDF, vinculado a uma peça, renderizado em camada independente. |
+| **Implemento** | Equipamento agrícola ao qual o catálogo se refere. |
+| **Compatibilidade** | Relação entre uma peça e múltiplos modelos ou implementos que a utilizam. |
+| **Workspace Administrativo** | Ambiente de trabalho destinado ao cadastro e marcação de catálogos. |
+| **Workspace de Consulta** | Ambiente destinado à consulta de catálogos e peças por usuários finais. |
+| **Camada de Marcação** | Estrutura visual independente, sobreposta ao PDF, responsável por exibir as marcações sem alterar o documento. |
+| **PDF Original** | Arquivo enviado pelo administrador, preservado sem qualquer modificação. |
+| **Central de Desenvolvimento** | Área interna do sistema, destinada a administradores, com o status do roadmap e da arquitetura do projeto. |
+
+---
+
+## 13. Premissas
+
+- O administrador é o único responsável pela criação de marcações e cadastro de peças.
+- Usuários comuns (empresas, oficinas, clientes) apenas consultam o sistema.
+- O PDF é armazenado exatamente como enviado, sem qualquer modificação.
+- Toda informação adicional é armazenada de forma separada do arquivo original.
+- O sistema é multi-fabricante desde a primeira versão, sem exceções específicas de marca.
+- A infraestrutura do projeto (banco de dados, hospedagem) utiliza serviços com plano gratuito.
+
+---
+
+## 14. Limitações Conhecidas da Primeira Versão
+
+- Não há sistema de autenticação; o acesso à área administrativa depende apenas do conhecimento da URL.
+- O cadastro de peças e marcações é inteiramente manual.
+- Não há edição ou exclusão de marcações — apenas criação.
+- Não há suporte a fotos, vídeos ou documentos técnicos vinculados à peça.
+- Não há busca por código ou descrição.
+- Não há verificação automática de duplicidade de peças entre catálogos.
+
+---
+
+## 15. Dependências Técnicas
+
+- **Supabase** — banco de dados, autenticação futura e armazenamento de arquivos.
+- **PostgreSQL** — banco de dados relacional utilizado pelo Supabase.
+- **PDF.js** — biblioteca para renderização do PDF no navegador.
+- **Vercel** (ou GitHub Pages) — hospedagem estática do frontend.
+
+---
+
+*Fim do documento PRS.md*
