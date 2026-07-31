@@ -1,0 +1,246 @@
+# MDS_TEMPLATE.md — Module Design Specification (Template)
+## Catálogo Inteligente de Peças Agrícolas
+
+**Versão do template:** 0.1
+**Depende de:** PRS.md (o quê construir) e SDS.md (como construir o sistema como um todo)
+**Função deste documento:** definir o padrão obrigatório usado para especificar **qualquer módulo**, existente ou futuro, do sistema.
+
+---
+
+## Como usar este template
+
+- PRS.md responde **o que** o sistema faz.
+- SDS.md responde **como** o sistema é construído como um todo.
+- Cada `MDS-<codigo-do-modulo>.md` responde **como um módulo específico** funciona, isoladamente, dentro dessa arquitetura.
+- Este arquivo não descreve nenhum módulo real — é o **molde**. Para documentar um módulo (ex: Workspace, Pesquisa, Central de Desenvolvimento), copie a estrutura abaixo para um novo arquivo e preencha cada capítulo.
+- Nenhum capítulo pode ser omitido. Se um capítulo não se aplicar ainda (ex: um módulo sem IA prevista), ele deve conter explicitamente `Não se aplica nesta versão`, nunca ser removido.
+- Qualquer IA ou pessoa que for especificar um módulo novo deve seguir esta estrutura sem alterar a ordem ou os títulos dos capítulos, para manter os documentos comparáveis entre si.
+
+---
+
+## Estrutura obrigatória de um MDS
+
+### 1. Identificação
+
+| Campo | Preenchimento |
+|---|---|
+| Nome do módulo | `[nome por extenso, em português]` |
+| Código do módulo | `[identificador curto, ex: MOD-WORKSPACE]` |
+| Versão | `[versão do módulo, ex: 0.1]` |
+| Status | `[Planejado / Em desenvolvimento / Concluído / Descontinuado]` |
+| Autor | `[quem especificou o módulo]` |
+| Última revisão | `[data]` |
+| Dependências | `[lista de módulos e serviços dos quais este módulo depende]` |
+
+---
+
+### 2. Objetivo
+
+Descrever, em um ou dois parágrafos, **por que este módulo existe** e qual problema ele resolve dentro do sistema. Deve ser compreensível sem precisar ler o código.
+
+---
+
+### 3. Responsabilidades
+
+Duas listas obrigatórias:
+
+**O que o módulo faz:**
+- `[responsabilidade 1]`
+- `[responsabilidade 2]`
+
+**O que o módulo nunca deverá fazer:**
+- `[limite 1, ex: "nunca altera o arquivo PDF"]`
+- `[limite 2, ex: "nunca acessa o banco diretamente, apenas via serviço"]`
+
+---
+
+### 4. Escopo
+
+**Pertence a este módulo:**
+- `[item 1]`
+
+**Não pertence a este módulo** (e deve indicar a qual módulo pertence de fato):
+- `[item 1 → pertence ao módulo X]`
+
+---
+
+### 5. Entradas
+
+- **Eventos recebidos:** `[lista de eventos do catálogo de eventos do SDS.md que este módulo escuta]`
+- **Dados recebidos:** `[dados que chegam de outro módulo, formulário ou URL]`
+- **Serviços utilizados:** `[Serviço de Banco, Serviço de PDF, etc., conforme SDS.md]`
+- **Usuários envolvidos:** `[perfis do PRS.md que interagem com este módulo]`
+
+---
+
+### 6. Saídas
+
+- **Eventos emitidos:** `[lista de eventos que este módulo dispara]`
+- **Dados gerados:** `[o que o módulo produz]`
+- **Atualizações no banco:** `[tabelas afetadas e tipo de operação: inserção, leitura, atualização]`
+- **Mudanças visuais:** `[o que aparece/desaparece na tela como resultado]`
+
+---
+
+### 7. Componentes
+
+- **Componentes internos:** `[componentes exclusivos deste módulo]`
+- **Componentes reutilizados:** `[componentes de /src/components usados aqui]`
+- **Componentes futuros:** `[componentes que este módulo vai precisar quando evoluir]`
+
+---
+
+### 8. Fluxo
+
+Representar o fluxo completo do módulo em um diagrama de texto, no mesmo padrão usado no SDS.md. Exemplo de formato (substituir pelo fluxo real do módulo):
+
+```
+Entrada
+   ↓
+Etapa 1
+   ↓
+Etapa 2
+   ↓
+Saída
+```
+
+O diagrama deve mostrar o caminho do dado ou da interação do início ao fim, incluindo pontos de decisão quando existirem.
+
+---
+
+### 9. Banco de Dados
+
+| Tabela | Operação | Campos principais utilizados |
+|---|---|---|
+| `[nome_da_tabela]` | `[leitura / escrita / ambos]` | `[campos relevantes]` |
+
+Descrever também os **relacionamentos** relevantes para este módulo (ex: "depende de `catalogo_id` presente em `pecas`").
+
+---
+
+### 10. Eventos
+
+| Evento | Direção | Explicação |
+|---|---|---|
+| `[nome.do.evento]` | `Escutado` ou `Disparado` | `[o que significa e o que provoca]` |
+
+Todo evento deve corresponder a um já registrado no catálogo de eventos do SDS.md, ou ser proposto como novo evento a ser incluído lá.
+
+---
+
+### 11. Regras de Negócio
+
+Listar, de forma numerada, todas as regras que o módulo deve obedecer.
+
+- **RN-01** — `[regra]`
+- **RN-02** — `[regra]`
+
+---
+
+### 12. Validações
+
+Listar todas as validações de dados exigidas antes de uma ação ser concluída.
+
+- `[campo obrigatório, formato esperado, limite de valor, etc.]`
+
+---
+
+### 13. Interface
+
+Descrever o **comportamento visual** do módulo em palavras, sem código:
+- Como as informações são organizadas na tela.
+- Como o usuário interage (cliques, seleção, digitação).
+- Estados visuais possíveis (carregando, vazio, erro, sucesso).
+
+Nenhum HTML, CSS ou nome de classe deve aparecer aqui — apenas comportamento.
+
+---
+
+### 14. Segurança
+
+- **Permissões:** `[quem pode usar este módulo]`
+- **Perfis:** `[perfis do PRS.md aplicáveis]`
+- **Restrições:** `[o que este módulo nunca deve permitir, mesmo por engano]`
+
+---
+
+### 15. Erros
+
+- Como o módulo deve se comportar diante de falha (ex: banco indisponível, dado inválido).
+- Mensagens exibidas ao usuário (descrever a intenção da mensagem, não o texto literal de interface).
+- Estratégia de recuperação (ex: permitir tentar novamente, preservar dados já digitados).
+
+---
+
+### 16. Performance
+
+- Requisitos mínimos de tempo de resposta esperado.
+- Comportamento esperado com grande volume de dados (ex: milhares de peças em um catálogo).
+- Pontos de atenção para escalabilidade específicos deste módulo.
+
+---
+
+### 17. Dependências
+
+- **Módulos:** `[outros módulos necessários para este funcionar]`
+- **Serviços:** `[serviços do SDS.md utilizados]`
+- **Banco:** `[tabelas das quais depende]`
+- **Bibliotecas:** `[bibliotecas externas usadas, ex: PDF.js, Supabase JS]`
+
+---
+
+### 18. Testes
+
+- **Critérios de aceite:** `[condições que confirmam que o módulo está funcionando corretamente]`
+- **Cenários positivos:** `[casos de uso esperados funcionando normalmente]`
+- **Cenários negativos:** `[casos de erro esperado, ex: dado ausente, PDF inexistente]`
+- **Casos extremos:** `[volumes grandes, campos vazios, cliques fora da área esperada, conexão instável]`
+
+---
+
+### 19. Expansões Futuras
+
+Descrever, sem implementar, como este módulo deverá evoluir:
+- `[funcionalidade futura 1]`
+- Integração com IA: `[o que mudaria neste módulo]`
+- OCR: `[o que mudaria neste módulo]`
+- ERP: `[o que mudaria neste módulo]`
+- API: `[o que mudaria neste módulo]`
+
+Se alguma dessas expansões não fizer sentido para o módulo, registrar explicitamente `Não se aplica`.
+
+---
+
+### 20. Histórico
+
+| Versão | Data | Alteração | Autor |
+|---|---|---|---|
+| `[0.1]` | `[data]` | `[descrição da mudança]` | `[autor]` |
+
+---
+
+## Padrão de Qualidade (obrigatório para todo módulo)
+
+Todo módulo documentado com este template deve ser:
+
+- **Modular** — responsabilidade única e bem delimitada.
+- **Documentado** — nenhuma decisão relevante apenas verbal ou implícita no código.
+- **Desacoplado** — não depende de detalhes internos de outro módulo, apenas de seus eventos e serviços expostos.
+- **Reutilizável** — componentes e serviços aproveitáveis por outros módulos.
+- **Compatível com IA** — especificado de forma clara o suficiente para que qualquer modelo de IA implemente corretamente lendo apenas este documento.
+- **Compatível com múltiplos fabricantes** — nenhuma regra específica de marca ou modelo.
+- **Preparado para expansão** — o capítulo 19 nunca pode ficar vazio de reflexão, mesmo quando a resposta é "não se aplica".
+
+---
+
+## Regras de Uso do Template
+
+1. Todo novo módulo deve gerar um arquivo próprio, nomeado `MDS-<CODIGO-DO-MODULO>.md`, salvo em `docs/EFS/` ou em uma subpasta equivalente definida futuramente.
+2. Nenhum capítulo pode ser renomeado, reordenado ou removido.
+3. Campos não aplicáveis devem ser preenchidos com `Não se aplica`, nunca deixados em branco.
+4. Qualquer alteração relevante em um módulo já documentado deve ser refletida no capítulo 20 (Histórico) do respectivo MDS, e também no `CHANGELOG.md` geral do projeto.
+5. Este arquivo (`MDS_TEMPLATE.md`) é a única fonte de verdade sobre a estrutura exigida — nenhum MDS individual pode inventar capítulos adicionais sem que este template seja atualizado primeiro.
+
+---
+
+*Fim do documento MDS_TEMPLATE.md*
