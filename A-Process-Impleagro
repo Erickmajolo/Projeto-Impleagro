@@ -1,0 +1,598 @@
+[EFS-01.md](https://github.com/user-attachments/files/30601948/EFS-01.md)# Projeto-Impleagro
+Projeto agricola para catalogos inteligentes
+[Uploading EFS-0# EFS-01.md — Engineering Flow Specification
+## Catálogo Inteligente de Peças Agrícolas
+### Parte 1 de 10 — Fundamentos, Estrutura Global e Fluxos Transversais
+
+**Versão:** 0.1
+**Hierarquia (documentos superiores, nunca contrariados):** PRS.md → SDS.md → MDS_TEMPLATE.md → SDM.md → ADS.md → EFS.md
+
+> **Nota de continuidade documental:** este documento inicia uma reestruturação do EFS em dez partes independentes (`EFS-01.md` a `EFS-10.md`), a serem unificadas futuramente em um único `EFS.md`. Um `EFS.md` de arquivo único já havia sido produzido anteriormente, cobrindo autenticação, cadastro administrativo, upload, Workspace, pesquisa, peças, administração do sistema, auditoria, erros e fluxos futuros, com uma estrutura de campos por fluxo mais enxuta. A partir desta versão, essa estrutura é **substituída** pela especificação de fluxo mais detalhada definida na Seção 7 deste documento (quinze campos obrigatórios, em vez dos doze anteriores). O conteúdo específico de cada família de fluxo (cadastro, upload, Workspace, pesquisa, peças, administração, auditoria, erros, futuros) será redistribuído e reespecificado nas Partes 2 a 10, sob o novo padrão. Esta Parte 1 trata exclusivamente de fundamentos e fluxos transversais — nenhum fluxo de CRUD, Workspace, Pesquisa ou Usuário é descrito aqui.
+
+---
+
+## 1. Objetivo
+
+O EFS-01.md estabelece a fundação sobre a qual todas as demais partes do EFS serão construídas: a hierarquia documental, os princípios gerais que distinguem o EFS dos demais documentos, as convenções de nomenclatura aplicáveis a todo fluxo do sistema, a estrutura oficial obrigatória de um fluxo, os estados gerais do sistema, e os fluxos transversais — comportamentos que atravessam toda a aplicação, independentemente do módulo ou entidade envolvida.
+
+Nenhuma parte subsequente do EFS pode definir um fluxo sem seguir a estrutura estabelecida na Seção 7 deste documento, nem introduzir um estado do sistema fora do conjunto definido na Seção 8, nem nomear um evento fora das convenções da Seção 6, sem que esta Parte 1 seja atualizada primeiro.
+
+---
+
+## 2. Escopo
+
+Este documento cobre exclusivamente:
+
+- A hierarquia e a relação do EFS com os demais documentos oficiais do projeto.
+- Os princípios que delimitam a responsabilidade do EFS frente a PRS, SDS, MDS, SDM, ADS e API.
+- As convenções de nomenclatura obrigatórias para qualquer fluxo, estado, evento, ator, serviço, repositório, mensagem, erro ou termo usado nas Partes 2 a 10.
+- A estrutura oficial de campos que todo fluxo documentado nas Partes 2 a 10 deve conter.
+- Os estados gerais que o sistema pode assumir, independentemente do módulo em execução.
+- Os fluxos transversais: comportamentos comuns a todas as telas e módulos (inicialização, navegação, atualização, tratamento de erro, confirmações, cancelamentos, timeout, falha de rede, perda de sessão e retorno a estado consistente).
+- O catálogo de eventos e mensagens de escopo global.
+- Os padrões gerais de validação, persistência e navegação.
+- A cadeia de rastreabilidade entre todos os documentos oficiais.
+- As regras obrigatórias que vinculam todas as partes subsequentes do EFS.
+
+Este documento **não** descreve: operações de criação, edição ou exclusão de fabricante, modelo, catálogo ou peça; o funcionamento do Workspace ou do visualizador de PDF; fluxos de pesquisa; fluxos de autenticação, usuário, perfil ou permissão; fluxos de auditoria específicos de entidade; ou fluxos futuros de IA. Esses assuntos pertencem às Partes 2 a 10.
+
+---
+
+## 3. Hierarquia Documental
+
+O EFS ocupa a posição mais subordinada da pilha documental definida até esta versão:
+
+```
+PRS.md   — o que o sistema deve fazer (negócio)
+   ↓
+SDS.md   — como o sistema é construído (arquitetura)
+   ↓
+MDS_TEMPLATE.md — como cada módulo é especificado (estrutura por módulo)
+   ↓
+SDM.md   — quais entidades existem e como se relacionam (domínio)
+   ↓
+ADS.md   — como as entidades existem fisicamente no banco (dados)
+   ↓
+EFS.md   — como cada processo se comporta, do início ao fim (comportamento)
+```
+
+O EFS nunca introduz uma regra de negócio que o PRS não sustente, nunca descreve uma camada ou princípio arquitetural que o SDS não tenha definido, nunca especifica o comportamento interno de um módulo além do que o MDS correspondente autoriza, nunca manipula uma entidade que o SDM não reconheça, e nunca referencia uma tabela ou campo que o ADS não tenha especificado. Um documento **API.md**, ainda não existente, ocupará futuramente a posição imediatamente abaixo do EFS, tratando exclusivamente de contratos técnicos de requisição e resposta — nenhuma decisão deste documento antecipa esse contrato.
+
+---
+
+## 4. Responsabilidades do EFS
+
+O EFS é responsável por:
+
+- Descrever a sequência cronológica exata de eventos que compõem cada processo do sistema.
+- Definir, para cada processo, quem pode iniciá-lo, sob quais condições, e qual efeito observável ele produz.
+- Estabelecer os estados possíveis do sistema e as transições válidas entre eles.
+- Padronizar o vocabulário usado para descrever comportamento (atores, gatilhos, eventos, mensagens).
+- Garantir que todo comportamento documentado seja rastreável até uma entidade do SDM, uma tabela do ADS, um princípio do SDS e um requisito do PRS.
+
+O EFS **não é responsável** por:
+
+- Justificar decisões arquiteturais (papel do SDS).
+- Definir a estrutura estática de um módulo (papel do MDS).
+- Definir entidades, atributos conceituais ou relacionamentos de domínio (papel do SDM).
+- Definir colunas, tipos, índices ou estratégias de banco de dados (papel do ADS).
+- Definir contratos técnicos de requisição/resposta, formatos de payload ou códigos de status (papel futuro da API.md).
+
+---
+
+## 5. Princípios Gerais
+
+| Documento | O que documenta |
+|---|---|
+| **PRS.md** | O que o sistema deve entregar ao negócio — requisitos, público-alvo, escopo do MVP. |
+| **SDS.md** | Como o sistema é arquitetado — camadas, Core, módulos, serviços, eventos, padrões estruturais. |
+| **MDS_TEMPLATE.md** | Como cada módulo individual deve ser especificado — estrutura fixa de documentação por módulo. |
+| **SDM.md** | Quais entidades existem no domínio, o que significam e como se relacionam conceitualmente. |
+| **ADS.md** | Como essas entidades existem fisicamente — tabelas, colunas, chaves, índices, integridade. |
+| **EFS.md** | Como cada processo se comporta, em sequência cronológica, do evento inicial ao estado final. |
+
+Nenhum desses documentos substitui o outro. Um desenvolvedor ou uma IA que precise implementar um comportamento deve necessariamente consultar todos os seis: o EFS informa a sequência; o SDM informa o significado dos dados manipulados; o ADS informa onde e como esses dados são persistidos; o SDS informa os limites arquiteturais dentro dos quais tudo isso deve operar; o MDS informa a que módulo aquele comportamento pertence; e o PRS informa por que aquele comportamento é necessário.
+
+---
+
+## 6. Convenções
+
+### 6.1 Fluxos
+Nome descritivo em português, em título (ex: "Abertura de Tela", "Perda de Sessão"). Cada fluxo recebe um número de seção dentro da parte do EFS em que é documentado (ex: 9.4 neste documento).
+
+### 6.2 Estados
+Substantivo ou particípio único, em português, com inicial maiúscula, representando uma condição observável do sistema (ex: `Carregando`, `Pronto`, `Erro`). Nunca uma frase, nunca uma combinação de dois estados em um só nome.
+
+### 6.3 Eventos
+Padrão `contexto.acao`, em português, minúsculo, conforme já estabelecido no SDS.md, Capítulo 12. Eventos de escopo global (Seção 10 deste documento) usam o contexto `sistema`, `navegacao`, `tela`, `sessao`, `rede` ou `confirmacao`, conforme o caso (ex: `sistema.inicializado`, `tela.aberta`, `rede.falhou`).
+
+### 6.4 Atores
+Correspondem exatamente aos perfis definidos no PRS.md, Seção 4 (Administrador, Empresa, Concessionária, Revenda, Oficina, Mecânico, Balconista, Cliente Final), mais um ator não humano: **Sistema**, usado quando o gatilho de um fluxo é temporal ou automático, não uma ação direta de um usuário (ex: expiração de sessão por tempo).
+
+### 6.5 Serviços
+Correspondem exatamente aos Serviços definidos no SDS.md, Capítulo 14 (Serviço de Banco, Serviço de Storage, Serviço de PDF, Serviço de Pesquisa, Serviço de Configuração, Serviço de Compatibilidade, Serviço de Documentação). Nenhum fluxo em nenhuma parte do EFS pode inventar um novo Serviço sem que o SDS.md seja atualizado primeiro.
+
+### 6.6 Repositórios
+**Repositório** é um termo introduzido por este documento para designar a subdivisão interna do Serviço de Banco responsável por um único tipo de entidade (ex: "Repositório de Peças", "Repositório de Catálogos"). Um Repositório não é um novo Serviço — é um detalhe de organização interna do Serviço de Banco já definido no SDS.md, e existe apenas para permitir que os fluxos das próximas partes refiram-se de forma precisa a qual porção do Serviço de Banco está sendo utilizada, sem violar a fronteira arquitetural já estabelecida.
+
+### 6.7 Mensagens
+Toda mensagem exibida ao usuário pertence a exatamente uma categoria: **Informação**, **Sucesso**, **Aviso** ou **Erro** (ver Seção 11). Nenhuma mensagem combina duas categorias, e nenhuma mensagem técnica bruta (texto de erro originado diretamente de um Serviço externo) é exibida sem antes ser traduzida para uma dessas categorias.
+
+### 6.8 Erros
+Todo erro documentado em qualquer parte do EFS é classificado em uma das famílias já estabelecidas: erro de autenticação, erro de autorização, erro de validação, erro de persistência (banco), erro de armazenamento (Storage), erro de rede, erro de tempo excedido (timeout), erro de conflito de concorrência, ou erro inesperado. Nenhuma parte subsequente do EFS pode criar uma nova família de erro sem atualizar esta convenção primeiro.
+
+### 6.9 Terminologia
+| Termo | Definição |
+|---|---|
+| **Ator** | Quem ou o que inicia um fluxo (ver 6.4). |
+| **Gatilho** | O evento específico que dá início à execução de um fluxo. |
+| **Sequência** | A lista numerada e cronológica de passos do caminho principal de um fluxo. |
+| **Estado Final** | O estado geral do sistema (Seção 8) garantido ao término do fluxo, no caminho de sucesso. |
+| **Fluxo Alternativo** | Uma variação da sequência principal que ainda termina em sucesso, por um caminho diferente. |
+| **Exceção** | Uma condição que impede a conclusão normal do fluxo, tratada de forma explícita, sem levar a um estado inconsistente. |
+
+---
+
+## 7. Estrutura Oficial de um Fluxo
+
+Todo fluxo documentado a partir da Parte 2 do EFS deve conter, obrigatoriamente, exatamente estes quinze campos, nesta ordem:
+
+| Campo | Conteúdo obrigatório |
+|---|---|
+| **Objetivo** | O resultado que o fluxo entrega, em uma frase. |
+| **Atores** | Quem pode iniciar o fluxo, conforme 6.4. |
+| **Pré-condições** | O que deve ser verdadeiro antes do fluxo poder começar. |
+| **Gatilho** | O evento inicial, no padrão de 6.3. |
+| **Entradas** | Todo dado que o fluxo recebe do Ator ou de outro fluxo. |
+| **Validações** | Toda verificação obrigatória antes de qualquer persistência. |
+| **Sequência** | Os passos numerados e cronológicos do caminho principal. |
+| **Persistência** | O que é gravado, alterado ou lido, e por qual Serviço/Repositório. |
+| **Regras** | Toda regra de negócio que o fluxo deve respeitar, numerada. |
+| **Pós-condições** | O que passa a ser garantidamente verdadeiro após o fluxo, no caminho de sucesso. |
+| **Fluxos Alternativos** | Variações válidas do caminho principal. |
+| **Exceções** | Toda condição de falha tratada, e o comportamento correspondente. |
+| **Dependências** | Módulos, Serviços, entidades ou outros fluxos dos quais este depende. |
+| **Estado Final** | O estado geral do sistema (Seção 8) ao término do fluxo. |
+| **Observações** | Ressalvas, limitações conhecidas, ou notas de consistência com outros documentos. |
+
+Nenhum campo pode ser omitido. Quando um campo não se aplica a um fluxo específico, ele deve conter explicitamente `Não se aplica`, nunca ser suprimido da estrutura.
+
+---
+
+## 8. Estados Gerais do Sistema
+
+O sistema, em qualquer momento, encontra-se em exatamente um dos estados gerais abaixo. Módulos específicos podem definir sub-estados próprios nas partes seguintes do EFS, desde que esses sub-estados sejam sempre reconduzíveis a um destes estados gerais.
+
+| Estado | Definição | Transições válidas de saída |
+|---|---|---|
+| **Inicializando** | O sistema está carregando seus recursos essenciais (scripts, configuração, conexão inicial) antes de estar utilizável. | → Pronto; → Erro |
+| **Pronto** | O sistema está disponível para interação do Ator, sem operação pendente em curso. | → Carregando; → Processando; → Aguardando Confirmação; → Sessão Encerrada |
+| **Carregando** | O sistema está obtendo dados de um Serviço (leitura) em resposta a uma navegação ou atualização. | → Pronto; → Erro |
+| **Processando** | O sistema está executando lógica intermediária (validação, cálculo) antes de uma persistência. | → Salvando; → Erro; → Pronto (quando a validação falha antes de qualquer chamada a Serviço) |
+| **Salvando** | O sistema está gravando dados por meio de um Serviço/Repositório (escrita). | → Pronto; → Erro |
+| **Aguardando Confirmação** | O sistema apresentou uma confirmação obrigatória ao Ator e aguarda sua decisão antes de prosseguir. | → Processando (se confirmado); → Pronto (se cancelado) |
+| **Erro** | O sistema identificou uma condição de falha e a comunicou ao Ator, sem ter concluído a operação em curso. | → Pronto; → Recuperação |
+| **Recuperação** | O sistema está restabelecendo um estado consistente após um Erro ou uma Perda de Sessão. | → Pronto; → Sessão Encerrada |
+| **Sessão Encerrada** | Não há sessão ativa (aplicável apenas quando a Autenticação, PRS.md Seção 14, estiver implementada); o sistema aguarda um novo Login. | → Inicializando |
+
+Nenhum fluxo documentado em qualquer parte do EFS pode declarar um Estado Final fora deste conjunto.
+
+---
+
+## 9. Fluxos Transversais
+
+### 9.1 Inicialização do Sistema
+
+- **Objetivo:** preparar o ambiente de execução antes de qualquer interação do Ator ser possível.
+- **Atores:** Sistema.
+- **Pré-condições:** o navegador carregou o arquivo HTML correspondente à tela solicitada.
+- **Gatilho:** `sistema.inicializacao.iniciada`.
+- **Entradas:** nenhuma entrada de Ator; parâmetros de configuração (Serviço de Configuração, ADS.md §5.2.20).
+- **Validações:** verificação de que as bibliotecas externas essenciais (Serviço de Banco, Serviço de PDF, quando aplicável à tela) foram carregadas com sucesso.
+- **Sequência:**
+  1. O navegador carrega o documento e os scripts referenciados.
+  2. O Core é instanciado, assumindo responsabilidade por configuração, eventos e estado global (SDS.md, Capítulo 5).
+  3. O Core obtém os parâmetros de conexão necessários (Serviço de Configuração).
+  4. O Core inicializa a conexão com o Serviço de Banco.
+  5. O Core dispara `sistema.inicializado`.
+  6. O controle é transferido ao fluxo de Inicialização da Aplicação (9.2).
+- **Persistência:** nenhuma escrita; leitura implícita de configuração.
+- **Regras:**
+  1. Nenhuma interação do Ator é aceita antes da conclusão deste fluxo.
+  2. Uma falha nesta etapa nunca é tratada como erro de negócio — é sempre um Erro de inicialização (Seção 6.8).
+- **Pós-condições:** Core disponível; conexão com o Serviço de Banco estabelecida.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** falha ao carregar uma biblioteca externa essencial → o sistema permanece no estado Erro, exibindo mensagem de indisponibilidade, sem prosseguir à Inicialização da Aplicação.
+- **Dependências:** Core (SDS.md, Capítulo 5); Serviço de Configuração; Serviço de Banco.
+- **Estado Final:** Pronto, no caminho de sucesso; Erro, no caminho de falha.
+- **Observações:** nas telas atualmente implementadas (`index.html`, `catalogo.html`, `central.html`), este fluxo ocorre de forma implícita — não existe hoje um módulo Core formalizado como um componente de código próprio; cada página inicializa sua própria conexão ao Supabase de forma independente. Este fluxo especifica o comportamento **arquiteturalmente correto**, a ser adotado quando o Core for extraído como um módulo compartilhado (SDS.md, Capítulo 13 — Estrutura de Pastas, `src/services`).
+
+### 9.2 Inicialização da Aplicação
+
+- **Objetivo:** preparar a tela específica solicitada para uso, após a Inicialização do Sistema (9.1).
+- **Atores:** Sistema.
+- **Pré-condições:** Inicialização do Sistema concluída com sucesso.
+- **Gatilho:** `aplicacao.inicializacao.iniciada`.
+- **Entradas:** identificador de tela e, quando aplicável, parâmetros de URL (ex: `catalogo_id`).
+- **Validações:** verificação de que os parâmetros de URL obrigatórios para a tela em questão estão presentes e em formato válido.
+- **Sequência:**
+  1. O sistema identifica qual tela foi solicitada.
+  2. O sistema extrai e valida os parâmetros de URL relevantes.
+  3. O sistema executa o Carregamento Global (9.3) dos dados mínimos necessários àquela tela.
+  4. O sistema dispara `aplicacao.inicializada`.
+- **Persistência:** leitura, via Repositório correspondente à tela (ex: Repositório de Catálogos, ao abrir o Workspace).
+- **Regras:**
+  1. Parâmetros de URL ausentes ou inválidos impedem a conclusão deste fluxo.
+- **Pós-condições:** tela pronta para interação, com seus dados mínimos carregados.
+- **Fluxos Alternativos:** tela que não exige nenhum parâmetro de URL (ex: navegação inicial de fabricantes) → passo 2 é ignorado.
+- **Exceções:** parâmetro obrigatório ausente ou inválido → sistema permanece em Erro, exibindo mensagem específica (ex: "nenhum catálogo informado"), sem prosseguir ao Carregamento Global.
+- **Dependências:** Inicialização do Sistema (9.1); Repositório correspondente à tela.
+- **Estado Final:** Pronto, no caminho de sucesso; Erro, no caminho de falha.
+- **Observações:** corresponde, na implementação atual, aos primeiros passos dos fluxos já descritos no EFS.md anterior (ex: leitura de `catalogo_id` da URL em `catalogo.html`).
+
+### 9.3 Carregamento Global
+
+- **Objetivo:** obter, de um ou mais Repositórios, os dados mínimos necessários para uma tela ou seção da tela se tornar utilizável.
+- **Atores:** Sistema.
+- **Pré-condições:** conexão com o Serviço de Banco estabelecida.
+- **Gatilho:** `carregamento.iniciado`.
+- **Entradas:** identificadores necessários à consulta (ex: `catalogo_id`, `fabricante_id`).
+- **Validações:** nenhuma validação de negócio própria — delega a validação de parâmetros ao fluxo que o invocou (9.2 ou um fluxo de Navegação, 9.4).
+- **Sequência:**
+  1. O sistema transita para o estado Carregando.
+  2. O sistema solicita ao Repositório correspondente os dados necessários.
+  3. O Repositório executa a consulta via Serviço de Banco.
+  4. Em caso de sucesso, o sistema recebe os dados e transita para Pronto.
+  5. O sistema dispara `carregamento.concluido`.
+- **Persistência:** leitura exclusiva — este fluxo nunca grava dado.
+- **Regras:**
+  1. Nenhuma tela exibe conteúdo parcial sem indicar visualmente que o carregamento está em curso (estado Carregando observável pelo Ator).
+- **Pós-condições:** dados solicitados disponíveis para renderização.
+- **Fluxos Alternativos:** carregamento de múltiplos conjuntos de dados em paralelo (ex: Fluxo 10.1 do EFS.md anterior, Dashboard da Central de Desenvolvimento, que carrega módulos, versões e documentos simultaneamente) → os passos 2 a 4 ocorrem em paralelo para cada conjunto, e o estado só transita para Pronto quando todos concluírem.
+- **Exceções:** falha do Serviço de Banco → ver Fluxo de Tratamento Global de Erros (9.9); sistema transita para Erro.
+- **Dependências:** Serviço de Banco; Repositório correspondente.
+- **Estado Final:** Pronto, no caminho de sucesso; Erro, no caminho de falha.
+- **Observações:** este é o fluxo mais reutilizado do sistema — praticamente toda exibição de dado (fabricantes, modelos, catálogos, peças, marcações, módulos, versões, documentos) passa por uma instância deste padrão.
+
+### 9.4 Navegação
+
+- **Objetivo:** mover o Ator de um contexto de tela para outro, preservando a integridade do estado do sistema.
+- **Atores:** qualquer Ator com acesso à tela de origem.
+- **Pré-condições:** tela de origem no estado Pronto.
+- **Gatilho:** `navegacao.solicitada`.
+- **Entradas:** identificador da tela de destino e, quando aplicável, parâmetros a serem passados (ex: `catalogo_id`).
+- **Validações:** verificação de que a navegação solicitada é uma transição válida a partir da tela atual (ex: não é possível navegar para o Workspace sem um catálogo selecionado).
+- **Sequência:**
+  1. O Ator aciona um elemento de navegação (link, botão).
+  2. O sistema verifica se existe alteração não salva pendente na tela atual.
+  3. Caso exista, o sistema executa o fluxo de Confirmações (9.6) antes de prosseguir.
+  4. O sistema monta a URL de destino, incluindo os parâmetros necessários.
+  5. O navegador transita para a nova URL.
+  6. A tela de destino executa a Inicialização da Aplicação (9.2).
+- **Persistência:** nenhuma, exceto quando a Confirmação do passo 3 resultar em salvar alterações pendentes, caso em que se aplica o Padrão de Persistência (Seção 13).
+- **Regras:**
+  1. Nenhuma navegação descarta dado não salvo sem confirmação explícita do Ator.
+- **Pós-condições:** Ator posicionado na tela de destino, com a tela de origem completamente descarregada.
+- **Fluxos Alternativos:** navegação sem nenhuma alteração pendente → passo 3 é ignorado.
+- **Exceções:** tela de destino inválida ou parâmetro obrigatório ausente → ver Exceções do Fluxo 9.2.
+- **Dependências:** Fluxo de Confirmações (9.6); Inicialização da Aplicação (9.2).
+- **Estado Final:** Pronto (na tela de destino), ao término do fluxo.
+- **Observações:** na implementação atual, a navegação ocorre por meio de hiperlinks HTML simples entre páginas independentes (`index.html` → `catalogo.html`), sem um roteador do lado do cliente — a verificação de alteração pendente (passo 2) **não está implementada** nesta versão; é um comportamento especificado, não corrente.
+
+### 9.5 Abertura de Tela / Troca de Tela
+
+- **Objetivo:** tornar uma tela específica visível e interativa ao Ator.
+- **Atores:** Sistema, em resposta a uma Navegação (9.4) ou à primeira carga da aplicação.
+- **Pré-condições:** URL de destino válida.
+- **Gatilho:** `tela.aberta`.
+- **Entradas:** identificador da tela, parâmetros de URL.
+- **Validações:** idênticas às do Fluxo 9.2.
+- **Sequência:**
+  1. O sistema executa a Inicialização da Aplicação (9.2) para a nova tela.
+  2. O sistema dispara `tela.aberta`, informando o identificador da tela.
+  3. Qualquer estado visual remanescente da tela anterior (ex: painel lateral aberto) é reiniciado ao seu estado padrão.
+- **Persistência:** conforme o Carregamento Global (9.3) executado pela Inicialização da Aplicação.
+- **Regras:**
+  1. Nenhum estado visual de uma tela anterior é herdado pela tela seguinte, salvo quando explicitamente definido em um fluxo específico de módulo (a ser tratado nas partes seguintes do EFS).
+- **Pós-condições:** tela nova completamente renderizada e pronta para interação.
+- **Fluxos Alternativos:** troca de tela dentro da mesma página (não aplicável na implementação atual, que utiliza páginas HTML independentes por tela — ver Observações).
+- **Exceções:** idênticas às do Fluxo 9.2.
+- **Dependências:** Inicialização da Aplicação (9.2).
+- **Estado Final:** Pronto.
+- **Observações:** como o sistema atual não é uma aplicação de página única (SPA), "Abertura de Tela" e "Troca de Tela" são, na prática, o mesmo evento técnico (carregamento completo de um novo documento HTML) — distinguidos aqui apenas conceitualmente, para compatibilidade com uma futura arquitetura de página única, caso essa direção seja adotada em uma Decisão Arquitetural futura.
+
+### 9.6 Confirmações
+
+- **Objetivo:** obter a decisão explícita do Ator antes de uma ação irreversível ou de descarte de dado.
+- **Atores:** qualquer Ator prestes a executar uma ação sujeita a confirmação (definida em cada fluxo específico das partes seguintes do EFS).
+- **Pré-condições:** o sistema identificou que a ação solicitada exige confirmação.
+- **Gatilho:** `confirmacao.solicitada`.
+- **Entradas:** a ação pendente de confirmação e seu contexto (ex: "excluir fabricante X").
+- **Validações:** nenhuma validação de dado — este fluxo trata exclusivamente da decisão do Ator.
+- **Sequência:**
+  1. O sistema transita para o estado Aguardando Confirmação.
+  2. O sistema apresenta ao Ator uma descrição clara da ação e de sua consequência.
+  3. O Ator confirma ou cancela.
+  4. Em caso de confirmação, o sistema dispara `confirmacao.confirmada` e prossegue com a ação original.
+  5. Em caso de cancelamento, o sistema dispara `confirmacao.cancelada` e retorna ao estado anterior, sem qualquer efeito.
+- **Persistência:** nenhuma neste fluxo — a persistência, quando aplicável, pertence à ação original que solicitou a confirmação.
+- **Regras:**
+  1. Toda ação irreversível (exclusão física, conforme ADS.md Capítulo 9) exige confirmação obrigatória.
+  2. A mensagem de confirmação nunca é genérica quando a ação afeta dados em cascata (ADS.md, Capítulo 8) — deve informar explicitamente o que mais será afetado.
+- **Pós-condições:** ação original executada (se confirmada) ou completamente descartada (se cancelada), nunca um estado intermediário.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** nenhuma própria a este fluxo — exceções pertencem à ação original.
+- **Dependências:** a ação específica que invocou a confirmação.
+- **Estado Final:** Processando (se confirmado, prosseguindo à ação original); Pronto (se cancelado).
+- **Observações:** já parcialmente implementado de forma simples (uso do diálogo nativo do navegador) em nenhuma tela atual — nenhuma ação implementada até esta versão exige confirmação, pois nenhuma exclusão foi implementada ainda (EFS.md anterior, Fluxos 5.3, 9.3, todos Planejados).
+
+### 9.7 Cancelamentos
+
+- **Objetivo:** permitir que o Ator interrompa uma operação em andamento sem que qualquer efeito parcial permaneça.
+- **Atores:** qualquer Ator com uma operação em curso que admita cancelamento.
+- **Pré-condições:** o sistema está no estado Processando, Salvando ou Aguardando Confirmação.
+- **Gatilho:** `cancelamento.solicitado`.
+- **Entradas:** nenhuma além da própria solicitação.
+- **Validações:** verificação de que a operação em curso é, de fato, cancelável (uma escrita já em progresso no Serviço de Banco não pode ser revertida por este fluxo — apenas operações ainda não confirmadas ao Serviço).
+- **Sequência:**
+  1. O Ator aciona a ação de cancelar.
+  2. O sistema verifica se alguma escrita já foi enviada ao Serviço de Banco.
+  3. Caso nenhuma escrita tenha sido enviada, o sistema descarta todos os dados temporários da operação.
+  4. O sistema retorna ao estado Pronto.
+- **Persistência:** nenhuma.
+- **Regras:**
+  1. Um cancelamento nunca reverte uma escrita já confirmada pelo Serviço de Banco — ele apenas impede que uma escrita ainda não enviada seja realizada.
+- **Pós-condições:** nenhum dado da operação cancelada é persistido; estado do sistema idêntico ao anterior ao início da operação.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** tentativa de cancelamento após a escrita já ter sido confirmada → o sistema informa ao Ator que a ação já foi concluída e não pode mais ser cancelada, distinguindo claramente essa situação de uma falha.
+- **Dependências:** a operação específica em curso.
+- **Estado Final:** Pronto.
+- **Observações:** corresponde, na implementação atual, ao Fluxo 7.17 do EFS.md anterior ("Cancelar Alterações", já implementado no formulário de criação de marcação).
+
+### 9.8 Atualização / Recarregamento
+
+- **Objetivo:** obter novamente, sob demanda do Ator ou do sistema, os dados mais recentes de uma tela já carregada.
+- **Atores:** qualquer Ator; Sistema (recarregamento automático após recuperação, ver 9.13).
+- **Pré-condições:** tela já inicializada (Fluxo 9.2 previamente concluído).
+- **Gatilho:** `tela.atualizacao.solicitada`.
+- **Entradas:** nenhuma além do contexto já carregado da tela (mesmos parâmetros da Inicialização da Aplicação original).
+- **Validações:** idênticas às do Carregamento Global (9.3).
+- **Sequência:**
+  1. O Ator aciona a atualização, ou o sistema a dispara automaticamente após uma Recuperação (9.13).
+  2. O sistema executa novamente o Carregamento Global (9.3), com os mesmos parâmetros da carga original.
+  3. Os dados exibidos são substituídos pelos dados recém-obtidos.
+- **Persistência:** leitura exclusiva.
+- **Regras:**
+  1. Uma atualização nunca descarta uma alteração não salva sem passar pelo Fluxo de Confirmações (9.6).
+- **Pós-condições:** dados exibidos refletem o estado mais atual do banco.
+- **Fluxos Alternativos:** atualização parcial de apenas uma seção da tela (ex: apenas a lista de marcações da página atual do Workspace, sem recarregar o catálogo inteiro) → aplicável quando o fluxo específico do módulo (partes seguintes do EFS) assim o definir.
+- **Exceções:** falha no novo Carregamento Global → ver Tratamento Global de Erros (9.9); os dados anteriormente exibidos permanecem visíveis, marcados como potencialmente desatualizados, em vez de serem removidos da tela.
+- **Dependências:** Carregamento Global (9.3).
+- **Estado Final:** Pronto, no caminho de sucesso; Erro, no caminho de falha (preservando os dados anteriores visíveis).
+
+### 9.9 Tratamento Global de Erros
+
+- **Objetivo:** garantir que toda falha, de qualquer origem, seja capturada e comunicada de forma padronizada, sem deixar o sistema em estado indefinido.
+- **Atores:** Sistema.
+- **Pré-condições:** nenhuma — este fluxo pode ser acionado a partir de qualquer estado.
+- **Gatilho:** `erro.capturado`.
+- **Entradas:** a exceção ou falha original, e o contexto (fluxo e Serviço de origem).
+- **Validações:** classificação da falha em uma das famílias de erro definidas em 6.8.
+- **Sequência:**
+  1. Um Serviço, Repositório ou o Core detecta uma condição de falha.
+  2. O sistema classifica a falha em uma família de erro (6.8).
+  3. O sistema transita para o estado Erro.
+  4. O sistema seleciona a Mensagem Global correspondente (Seção 11) à família identificada.
+  5. O sistema exibe a mensagem ao Ator, nunca o texto técnico bruto da falha original, salvo quando esse texto for, ele próprio, compreensível a um usuário leigo.
+  6. O sistema aciona o Fluxo de Retorno ao Estado Consistente (9.14).
+- **Persistência:** nenhuma escrita de dado de negócio; registro técnico do erro (Fluxo de Logs, a ser detalhado em parte futura do EFS, correspondente ao Fluxo 11.4 do EFS.md anterior).
+- **Regras:**
+  1. Nenhuma falha é ignorada silenciosamente.
+  2. Nenhuma mensagem técnica bruta e ininteligível é exibida diretamente ao Ator.
+  3. Toda falha classificável (6.8) deve ser efetivamente classificada — uma falha não reconhecida é tratada como Erro Inesperado, nunca descartada.
+- **Pós-condições:** Ator informado da falha; sistema em condição de retomar operação normal.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** este próprio fluxo é, por definição, um tratamento de exceção — não possui exceções próprias além de uma falha na exibição da própria mensagem de erro, tratada como Erro Inesperado.
+- **Dependências:** Serviço ou Repositório de origem da falha; Retorno ao Estado Consistente (9.14).
+- **Estado Final:** Erro, imediatamente seguido de Recuperação (via 9.14).
+- **Observações:** a implementação atual trata erros de forma pontual e não centralizada (cada tela captura seus próprios erros de Serviço de Banco individualmente, exibindo a mensagem técnica bruta do Supabase em vários pontos, conforme já registrado no EFS.md anterior, Fluxo 12.4). Este fluxo especifica o padrão a ser adotado quando o tratamento de erro for centralizado no Core.
+
+### 9.10 Timeout
+
+- **Objetivo:** impedir que uma operação permaneça indefinidamente em estado de espera.
+- **Atores:** Sistema.
+- **Pré-condições:** uma chamada a um Serviço está em curso (estado Carregando, Processando ou Salvando).
+- **Gatilho:** `sistema.timeout.excedido`.
+- **Entradas:** a chamada em curso e seu tempo decorrido.
+- **Validações:** comparação do tempo decorrido com o limite máximo definido em Configuração (ADS.md §5.2.20).
+- **Sequência:**
+  1. O sistema inicia a contagem do tempo ao disparar qualquer chamada a um Serviço.
+  2. Caso a resposta não seja recebida dentro do limite configurado, o sistema interrompe a espera.
+  3. O sistema classifica a situação como uma família de erro específica (Timeout, 6.8) e aciona o Tratamento Global de Erros (9.9).
+- **Persistência:** nenhuma.
+- **Regras:**
+  1. Nenhuma tela permanece nos estados Carregando, Processando ou Salvando indefinidamente sem um limite máximo de espera.
+- **Pós-condições:** Ator informado de que a operação excedeu o tempo esperado, com opção de tentar novamente.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** nenhuma própria — este fluxo é, em si, um tratamento de uma condição excepcional.
+- **Dependências:** Tratamento Global de Erros (9.9); Serviço de Configuração.
+- **Estado Final:** Erro, seguido de Recuperação.
+- **Observações:** o limite máximo de tempo ainda não foi formalmente definido em nenhum documento superior — é um valor de Configuração pendente de definição de produto, não uma decisão arquitetural deste EFS.
+
+### 9.11 Falha de Rede
+
+- **Objetivo:** tratar a perda de conectividade entre o navegador do Ator e os Serviços do sistema.
+- **Atores:** Sistema.
+- **Pré-condições:** uma chamada a um Serviço está em curso, ou o Ator tenta iniciar uma nova ação.
+- **Gatilho:** `rede.falhou`.
+- **Entradas:** a chamada que falhou por ausência de conectividade.
+- **Validações:** distinção entre uma falha de rede (nenhuma resposta do servidor alcançada) e uma falha de Serviço (resposta recebida, porém de erro) — ambas exigem tratamento diferenciado, pois a mensagem apropriada ao Ator é diferente.
+- **Sequência:**
+  1. O navegador reporta ausência de conectividade ou falha de transporte na chamada a um Serviço.
+  2. O sistema classifica a situação como Erro de rede (6.8).
+  3. O sistema aciona o Tratamento Global de Erros (9.9), com uma mensagem específica orientando verificação da conexão do Ator, distinta da mensagem genérica de Erro de Banco.
+- **Persistência:** nenhuma.
+- **Regras:**
+  1. Uma Falha de Rede nunca é apresentada ao Ator com a mesma mensagem de um Erro de Banco — a causa provável é diferente (conectividade do Ator vs. disponibilidade do serviço), e a orientação de recuperação também é diferente.
+- **Pós-condições:** Ator informado da provável causa (conectividade), com opção de tentar novamente assim que a conexão for restabelecida.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** nenhuma própria.
+- **Dependências:** Tratamento Global de Erros (9.9).
+- **Estado Final:** Erro, seguido de Recuperação.
+- **Observações:** nenhuma distinção entre Erro de Banco e Falha de Rede está implementada nesta versão — ambas resultam hoje na mesma mensagem genérica de erro nas telas existentes.
+
+### 9.12 Perda de Sessão
+
+- **Objetivo:** tratar corretamente a detecção de que a sessão do Ator não é mais válida, em qualquer ponto da aplicação.
+- **Atores:** Sistema.
+- **Pré-condições:** Autenticação implementada (PRS.md, Seção 14 — item ainda não presente nesta versão do sistema).
+- **Gatilho:** `sessao.perdida`.
+- **Entradas:** a chamada que revelou a invalidade da sessão.
+- **Validações:** confirmação, junto ao Serviço de Autenticação, de que a sessão de fato não é mais válida (para descartar uma falha de rede transitória sendo confundida com perda de sessão).
+- **Sequência:**
+  1. Um Serviço qualquer recebe uma resposta de autenticação inválida.
+  2. O sistema confirma que se trata de perda de sessão, não de falha de rede transitória.
+  3. O sistema descarta o estado de sessão local.
+  4. O sistema transita para Sessão Encerrada.
+  5. O sistema preserva, quando tecnicamente possível, os dados não salvos do Ator, para reenvio após novo login.
+- **Persistência:** nenhuma escrita de dado de negócio.
+- **Regras:**
+  1. Nenhuma ação subsequente é executada com uma sessão inválida — o sistema nunca tenta prosseguir a operação original após detectar perda de sessão.
+- **Pós-condições:** sessão local completamente descartada; Ator direcionado à reautenticação.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** impossibilidade de preservar os dados não salvos → o Ator deve ser avisado explicitamente disso.
+- **Dependências:** Serviço de Autenticação (a ser formalizado quando implementado); Tratamento Global de Erros (9.9).
+- **Estado Final:** Sessão Encerrada.
+- **Observações:** este fluxo é idêntico, em sua essência, ao Fluxo 4.3 ("Sessão Expirada") já descrito no EFS.md anterior — mantido aqui, na Parte 1, por se tratar de um comportamento transversal (pode ocorrer em qualquer tela), não específico do módulo de Autenticação. Não implementado nesta versão, por ausência de Autenticação.
+
+### 9.13 Retorno ao Estado Consistente
+
+- **Objetivo:** garantir que, após qualquer Erro, o sistema retorne a um estado observável e utilizável pelo Ator, nunca permanecendo em um estado indefinido ou parcialmente processado.
+- **Atores:** Sistema.
+- **Pré-condições:** o sistema está no estado Erro.
+- **Gatilho:** interno, disparado ao final do Tratamento Global de Erros (9.9), do Timeout (9.10), da Falha de Rede (9.11) ou da Perda de Sessão (9.12).
+- **Entradas:** o contexto do erro que originou a necessidade de recuperação.
+- **Validações:** verificação de que nenhuma escrita parcial foi deixada em curso (ver Regras).
+- **Sequência:**
+  1. O sistema transita para o estado Recuperação.
+  2. O sistema verifica se alguma operação de escrita foi parcialmente executada (ex: apenas uma de duas inserções relacionadas foi concluída — situação já identificada como possível no Fluxo 7.12 do EFS.md anterior).
+  3. Caso identificada uma escrita parcial, o sistema comunica explicitamente ao Ator qual parte da operação foi concluída e qual não foi, nunca presumindo sucesso total nem silenciando o estado parcial.
+  4. O sistema restabelece a tela a um estado exibível — reexecutando o Carregamento Global (9.3) quando necessário, para refletir o estado real do banco após a falha.
+  5. O sistema transita para Pronto.
+- **Persistência:** leitura, para confirmar o estado real após a falha; nenhuma escrita corretiva automática nesta versão (ver Observações).
+- **Regras:**
+  1. O sistema nunca declara uma operação como concluída com sucesso se apenas parte de suas escritas relacionadas foi persistida.
+  2. O sistema sempre prefere reconsultar o estado real do banco a presumir o resultado de uma operação cujo desfecho é incerto.
+- **Pós-condições:** sistema em estado Pronto, com a tela refletindo o estado real e verificado do banco de dados.
+- **Fluxos Alternativos:** nenhum.
+- **Exceções:** falha também na tentativa de reconsulta do passo 4 → o sistema permanece em Erro, sem nova tentativa automática, exigindo ação explícita do Ator.
+- **Dependências:** Carregamento Global (9.3); o Repositório correspondente à tela.
+- **Estado Final:** Pronto.
+- **Observações:** este fluxo formaliza, de maneira transversal, a correção necessária para a inconsistência já documentada no EFS.md anterior (Fluxo 7.12 — Peça criada sem Marcação correspondente, em caso de falha na segunda escrita). Enquanto uma transação atômica (SQL ou função remota do Supabase) não for implementada para operações de escrita relacionada, este fluxo de Retorno ao Estado Consistente é o mecanismo que impede que tal falha se torne invisível ao Ator — ele garante a comunicação do estado real, ainda que não elimine, por si só, a necessidade da correção estrutural já recomendada no ADS.md e no EFS.md anterior.
+
+---
+
+## 10. Eventos Globais
+
+| Evento | Origem | Significado |
+|---|---|---|
+| `sistema.inicializacao.iniciada` | Sistema | Início do carregamento do ambiente de execução. |
+| `sistema.inicializado` | Sistema | Core disponível, conexões estabelecidas. |
+| `aplicacao.inicializacao.iniciada` | Sistema | Início da preparação de uma tela específica. |
+| `aplicacao.inicializada` | Sistema | Tela pronta, dados mínimos carregados. |
+| `carregamento.iniciado` | Sistema | Início de uma leitura de dados. |
+| `carregamento.concluido` | Sistema | Leitura de dados concluída com sucesso. |
+| `navegacao.solicitada` | Ator | Intenção de mover-se para outra tela. |
+| `tela.aberta` | Sistema | Nova tela renderizada e interativa. |
+| `tela.atualizacao.solicitada` | Ator ou Sistema | Intenção de recarregar os dados da tela atual. |
+| `confirmacao.solicitada` | Sistema | Apresentação de uma decisão obrigatória ao Ator. |
+| `confirmacao.confirmada` | Ator | Decisão positiva sobre uma ação pendente. |
+| `confirmacao.cancelada` | Ator | Decisão negativa sobre uma ação pendente. |
+| `cancelamento.solicitado` | Ator | Intenção de interromper uma operação em curso. |
+| `erro.capturado` | Sistema | Qualquer falha detectada, de qualquer origem. |
+| `sistema.timeout.excedido` | Sistema | Tempo máximo de espera ultrapassado. |
+| `rede.falhou` | Sistema | Ausência de conectividade detectada. |
+| `sessao.perdida` | Sistema | Sessão do Ator identificada como inválida. |
+
+Este catálogo é exclusivamente de eventos de escopo global e transversal. Eventos específicos de domínio (ex: `marcacao.criada`, `peca.selecionada`) permanecem definidos no SDS.md, Capítulo 12, e serão referenciados, não redefinidos, nas próximas partes do EFS.
+
+---
+
+## 11. Mensagens Globais
+
+| Categoria | Uso | Exemplo de conteúdo (não literal) |
+|---|---|---|
+| **Informação** | Comunicar um estado neutro, sem indicar sucesso ou falha. | "Nenhum resultado encontrado para esta busca." |
+| **Sucesso** | Confirmar a conclusão bem-sucedida de uma ação solicitada pelo Ator. | "Registro salvo com sucesso." |
+| **Aviso** | Alertar sobre uma condição que exige atenção do Ator antes de prosseguir, sem ser uma falha. | "Esta ação removerá todos os registros dependentes." |
+| **Erro** | Comunicar que uma ação não pôde ser concluída. | "Não foi possível salvar. Verifique sua conexão e tente novamente." |
+
+Toda mensagem exibida ao Ator pertence a exatamente uma destas categorias (Convenção 6.7). Nenhuma parte subsequente do EFS pode introduzir uma quinta categoria sem que esta seção seja atualizada primeiro.
+
+---
+
+## 12. Padrões de Validação
+
+- Toda validação ocorre em, no máximo, dois pontos: **validação de apresentação** (verificação imediata na interface, para feedback rápido ao Ator, ex: campo obrigatório vazio) e **validação de Serviço** (verificação autoritativa, executada pelo Repositório/Serviço antes de qualquer persistência).
+- A validação de apresentação **nunca é suficiente por si só** — mesmo quando a interface impede o envio de um dado inválido, o Serviço correspondente deve validar novamente, pois a interface não é uma fronteira de confiança (mesmo princípio já aplicado na verificação de Permissão, Fluxo 4.4 do EFS.md anterior).
+- Nenhuma validação de regra de negócio ocorre dentro do banco de dados (trigger, função) — conforme ADS.md, Capítulo 2, princípio 6.
+- Toda validação ocorre **antes** de qualquer chamada de escrita ao Serviço de Banco, nunca depois.
+
+---
+
+## 13. Padrões de Persistência
+
+- Toda escrita ocorre exclusivamente por meio de um Repositório (6.6), nunca diretamente de um módulo de interface.
+- Quando uma ação exige duas ou mais escritas relacionadas (ex: criação de Peça seguida de Marcação), o Repositório deve, sempre que a tecnologia subjacente permitir (função remota/RPC do Supabase, transação SQL), executá-las de forma atômica — este é o padrão a ser seguido daqui em diante, corrigindo a lacuna já identificada no EFS.md anterior (Fluxo 7.12).
+- Quando a atomicidade completa não for tecnicamente viável em uma implementação específica, o fluxo correspondente deve obrigatoriamente descrever o comportamento de recuperação (ver Retorno ao Estado Consistente, 9.13), nunca presumir que a segunda escrita sempre sucede.
+- Nenhuma escrita ocorre sem que a Validação de Serviço (Seção 12) correspondente já tenha sido executada com sucesso.
+
+---
+
+## 14. Padrões de Navegação
+
+- A navegação atual do sistema é baseada em documentos HTML independentes, com parâmetros de contexto transmitidos via URL (ex: `catalogo_id`), sem um roteador de aplicação de página única.
+- Todo parâmetro de URL necessário a uma tela deve ser validado na Inicialização da Aplicação (9.2) antes de qualquer Carregamento Global (9.3) ser iniciado.
+- Nenhuma tela presume a existência de estado em memória herdado de uma tela anterior — todo dado necessário é revalidado e recarregado a cada Abertura de Tela (9.5), consistente com a ausência de uma camada de estado persistente entre páginas na arquitetura atual.
+- Uma eventual adoção futura de uma arquitetura de página única (SPA) não invalida os fluxos desta Parte 1 — apenas tornaria os Fluxos 9.4 e 9.5 tecnicamente mais eficientes (sem recarregamento completo do documento), sem alterar sua especificação de comportamento.
+
+---
+
+## 15. Rastreabilidade
+
+A cadeia de rastreabilidade entre os documentos oficiais do projeto segue a direção abaixo — cada documento é originado, e deve permanecer consistente com, o documento imediatamente anterior:
+
+```
+PRS.md  →  gera os requisitos que o SDS.md organiza em arquitetura
+SDS.md  →  gera os limites estruturais que o MDS_TEMPLATE.md formaliza por módulo
+MDS_TEMPLATE.md  →  gera o padrão que, quando aplicado, permitirá especificar cada módulo (MDS individuais, ainda não produzidos)
+SDM.md  →  gera as entidades que o ADS.md formaliza fisicamente no banco
+ADS.md  →  gera a estrutura de dados que o EFS.md manipula em cada fluxo
+EFS.md  →  gerará, futuramente, os contratos técnicos formalizados na API.md
+```
+
+Todo fluxo documentado a partir da Parte 2 do EFS deve poder ser rastreado, em sentido inverso, até: uma entidade do SDM.md, uma tabela do ADS.md, um Serviço do SDS.md, e um requisito funcional do PRS.md. Um fluxo que não puder ser rastreado dessa forma não deve ser documentado sem que o documento superior correspondente seja primeiro atualizado.
+
+---
+
+## 16. Regras Obrigatórias
+
+Aplicáveis a todo fluxo que será documentado nas Partes 2 a 10 deste EFS:
+
+1. Todo fluxo deve conter, obrigatoriamente, os quinze campos definidos na Seção 7, na ordem definida, sem omissão.
+2. Todo fluxo deve declarar um Gatilho no padrão de nomenclatura da Seção 6.3.
+3. Todo fluxo deve declarar um Estado Final pertencente exclusivamente ao conjunto da Seção 8.
+4. Nenhum fluxo acessa o banco de dados diretamente — sempre por meio de um Repositório (6.6), dentro de um Serviço do SDS.md.
+5. Toda validação de negócio ocorre conforme os Padrões de Validação (Seção 12).
+6. Toda persistência ocorre conforme os Padrões de Persistência (Seção 13).
+7. Toda navegação entre telas segue os Padrões de Navegação (Seção 14).
+8. Todo erro é tratado conforme o Tratamento Global de Erros (9.9) e classificado em uma das famílias da Seção 6.8.
+9. Toda mensagem exibida ao Ator pertence a uma das categorias da Seção 11.
+10. Nenhum fluxo declara sucesso de uma operação com escritas relacionadas sem confirmar que todas as escritas relacionadas foram, de fato, concluídas — na ausência de atomicidade garantida, o fluxo deve descrever explicitamente o comportamento de recuperação (9.13).
+11. Todo fluxo deve ser rastreável, conforme a Seção 15, até PRS.md, SDS.md, SDM.md e ADS.md.
+12. Nenhum fluxo contradiz PRS.md, SDS.md, MDS_TEMPLATE.md, SDM.md ou ADS.md.
+13. Nenhum fluxo antecipa um contrato técnico da futura API.md.
+14. Todo fluxo indica explicitamente seu status de implementação real (Implementado, Planejado ou Preparação futura), nas Observações, nunca presumindo que a especificação e a implementação corrente coincidem sem verificação.
+15. Nenhuma parte subsequente do EFS redefine um termo, estado, evento ou convenção já estabelecido nesta Parte 1 — extensões são permitidas; contradições não.
+1.md…]()
+
