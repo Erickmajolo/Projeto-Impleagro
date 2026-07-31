@@ -1,0 +1,85 @@
+-- ============================================================
+-- Catálogo Interativo de Peças Agrícolas
+-- Tabelas de apoio à Central de Desenvolvimento (área interna)
+-- Este script é ADITIVO: não altera nem apaga as tabelas do MVP
+-- (fabricantes, modelos, catalogos, pecas, marcacoes).
+-- Execute no SQL Editor do Supabase.
+-- ============================================================
+
+drop table if exists modulos cascade;
+drop table if exists versoes cascade;
+drop table if exists documentos_central cascade;
+
+-- Cada linha representa um módulo do roadmap do produto.
+-- status: 'concluido' | 'em_desenvolvimento' | 'pendente'
+create table modulos (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  fase text,                 -- ex: "Estrutura", "PDF", "IA"
+  status text not null default 'pendente'
+    check (status in ('concluido', 'em_desenvolvimento', 'pendente')),
+  ordem integer not null,
+  descricao text,
+  criado_em timestamp default now()
+);
+
+-- Histórico de versões do sistema.
+create table versoes (
+  id uuid primary key default gen_random_uuid(),
+  numero text not null,      -- ex: "v0.1"
+  data_lancamento date not null,
+  resumo text,
+  criado_em timestamp default now()
+);
+
+-- Lista de documentos do /docs, usada para montar os links na Central.
+create table documentos_central (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,        -- ex: "Manifesto do Projeto"
+  caminho text not null,     -- ex: "docs/MANIFEST.md" (caminho dentro do repositório)
+  categoria text,            -- ex: "Base", "EFS", "Prompts"
+  ordem integer not null
+);
+
+-- Acesso liberado apenas para esta fase de testes (mesma lógica das outras tabelas).
+alter table modulos enable row level security;
+alter table versoes enable row level security;
+alter table documentos_central enable row level security;
+
+create policy "acesso temporario teste" on modulos for all using (true) with check (true);
+create policy "acesso temporario teste" on versoes for all using (true) with check (true);
+create policy "acesso temporario teste" on documentos_central for all using (true) with check (true);
+
+-- ============================================================
+-- DADOS INICIAIS
+-- ============================================================
+
+insert into modulos (nome, fase, status, ordem, descricao) values
+  ('Banco de dados',        'Estrutura', 'concluido',        1, 'Estrutura relacional inicial: fabricantes, modelos, catálogos, peças, marcações.'),
+  ('Fabricantes',           'Estrutura', 'concluido',        2, 'Cadastro e listagem de fabricantes.'),
+  ('Modelos',               'Estrutura', 'concluido',        3, 'Cadastro e listagem de modelos vinculados a fabricantes.'),
+  ('Catálogos',             'Estrutura', 'concluido',        4, 'Cadastro e listagem de catálogos vinculados a modelos.'),
+  ('Workspace',             'Workspace', 'pendente',         5, 'Área de trabalho unificada para gestão de catálogos.'),
+  ('Visualizador de PDF',   'PDF',       'em_desenvolvimento', 6, 'Abertura do PDF original no navegador, zoom, navegação e miniaturas.'),
+  ('Marcações',             'Marcações', 'em_desenvolvimento', 7, 'Camada independente de marcações sobre o PDF, com modo administrador.'),
+  ('Pesquisa',              'Pesquisa',  'pendente',         8, 'Busca por código ou descrição, com destaque automático da peça.'),
+  ('Compatibilidade',       'Compatibilidade', 'pendente',   9, 'Uma peça existir em vários modelos/implementos.'),
+  ('Fotos e mídias',        'Fotos',     'pendente',        10, 'Fotos reais, documentos e vídeos vinculados à peça.'),
+  ('Inteligência Artificial','IA',       'pendente',        11, 'OCR, reconhecimento automático e busca semântica.'),
+  ('Integrações',           'Integrações','pendente',       12, 'ERP, estoque e API pública.');
+
+insert into versoes (numero, data_lancamento, resumo) values
+  ('v0.1', '2026-07-20', 'Estrutura inicial do banco e cadastro de fabricantes, modelos e catálogos.'),
+  ('v0.2', '2026-07-27', 'Visualizador de PDF com camada de marcações e modo administrador.');
+
+insert into documentos_central (nome, caminho, categoria, ordem) values
+  ('Manifesto do Projeto',        'docs/MANIFEST.md',            'Base', 1),
+  ('Visão do Projeto',            'docs/PROJECT.md',             'Base', 2),
+  ('Regras para IA',              'docs/AI_RULES.md',            'Base', 3),
+  ('Roadmap',                     'docs/ROADMAP.md',             'Base', 4),
+  ('Decisões de Arquitetura',     'docs/ADR.md',                 'Base', 5),
+  ('Diretrizes de Interface',     'docs/UI_GUIDELINES.md',       'Base', 6),
+  ('Componentes',                 'docs/COMPONENTS.md',          'Base', 7),
+  ('Diretrizes do Banco de Dados','docs/DATABASE_GUIDELINES.md', 'Base', 8),
+  ('Changelog',                   'docs/CHANGELOG.md',           'Base', 9),
+  ('Como Contribuir',             'docs/CONTRIBUTING.md',        'Base', 10);
