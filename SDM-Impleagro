@@ -1,0 +1,469 @@
+# SDM.md — System Domain Model
+## Catálogo Inteligente de Peças Agrícolas
+
+**Versão:** 0.1
+**Depende de:** PRS.md (negócio), SDS.md (arquitetura), MDS_TEMPLATE.md (padrão de módulo)
+**Função deste documento:** definir formalmente as entidades do domínio, seus relacionamentos e as regras que nunca podem ser violadas — referência obrigatória antes de qualquer implementação.
+
+---
+
+## Nota sobre o Estado Atual
+
+Este documento descreve o **modelo de domínio completo**, incluindo entidades já implementadas e entidades conceituais previstas para fases futuras. Cada entidade traz um campo **Status** indicando:
+
+- `Implementado` — já existe no banco de dados atual.
+- `Planejado` — parte do domínio, ainda sem tabela própria.
+
+Atualmente o encadeamento real no banco é `Fabricante → Modelo → Catálogo → Peça → Marcação`. Entidades como **Implemento** e **Versão** são um refinamento conceitual desse domínio (um Modelo pode, no futuro, se desdobrar em Implemento + Versão) e não exigem migração imediata — apenas não podem ser contrariadas por decisões tomadas agora.
+
+---
+
+## 1. Entidades
+
+Cada entidade é descrita com: Objetivo, Descrição, Responsabilidades, Atributos principais, Identificador, Relacionamentos, Restrições e Ciclo de Vida.
+
+### 1.1 Fabricante — `Implementado`
+- **Objetivo:** representar a empresa que fabrica implementos agrícolas.
+- **Descrição:** entidade raiz da hierarquia de catálogo; nunca contém regra específica de marca no sistema.
+- **Responsabilidades:** agrupar modelos sob uma mesma origem fabril.
+- **Atributos principais:** nome.
+- **Identificador:** `id` (uuid).
+- **Relacionamentos:** possui muitos Modelos (1:N).
+- **Restrições:** nome obrigatório; não pode ser removido se possuir modelos vinculados sem tratamento em cascata explícito.
+- **Ciclo de vida:** criado pelo Administrador; pode ser editado; exclusão remove modelos, catálogos, peças e marcações dependentes (cascata).
+
+### 1.2 Modelo — `Implementado`
+- **Objetivo:** representar uma variante de implemento produzida por um fabricante.
+- **Descrição:** hoje concentra o que futuramente poderá se dividir em Implemento + Versão.
+- **Responsabilidades:** agrupar catálogos de uma mesma variante de produto.
+- **Atributos principais:** nome, fabricante associado.
+- **Identificador:** `id` (uuid).
+- **Relacionamentos:** pertence a um Fabricante (N:1); possui muitos Catálogos (1:N).
+- **Restrições:** deve pertencer a exatamente um fabricante.
+- **Ciclo de vida:** criado pelo Administrador; exclusão remove catálogos dependentes (cascata).
+
+### 1.3 Implemento — `Planejado`
+- **Objetivo:** representar a linha de produto em um nível mais abstrato que o Modelo, permitindo que várias Versões compartilhem o mesmo Implemento.
+- **Descrição:** entidade conceitual para separar "o que o equipamento é" de "qual variante específica".
+- **Responsabilidades:** agrupar Versões de um mesmo produto.
+- **Atributos principais:** nome, categoria do implemento (ex: plantadeira, pulverizador).
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** pertence a um Modelo (N:1); possui muitas Versões (1:N).
+- **Restrições:** não pode existir sem um Modelo associado.
+- **Ciclo de vida:** planejado para fase de Compatibilidade.
+
+### 1.4 Versão — `Planejado`
+- **Objetivo:** representar uma revisão específica de um Implemento (ex: ano/safra, geração do equipamento).
+- **Descrição:** permite tratar mudanças de catálogo ao longo do tempo sem duplicar o Implemento inteiro.
+- **Responsabilidades:** vincular um Catálogo a um ponto específico na evolução de um Implemento.
+- **Atributos principais:** identificação da versão, período de vigência.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** pertence a um Implemento (N:1); possui um ou mais Catálogos (1:N).
+- **Restrições:** não pode existir sem um Implemento associado.
+- **Ciclo de vida:** planejado para fase de Compatibilidade.
+
+### 1.5 Catálogo — `Implementado`
+- **Objetivo:** representar o documento técnico (PDF) de peças de um modelo.
+- **Descrição:** referência ao arquivo original armazenado no Storage; nunca contém o PDF alterado.
+- **Responsabilidades:** agrupar páginas e peças pertencentes a um mesmo documento.
+- **Atributos principais:** nome, referência ao arquivo PDF.
+- **Identificador:** `id` (uuid).
+- **Relacionamentos:** pertence a um Modelo (N:1); possui muitas Páginas (1:N, implícitas); possui muitas Peças (1:N).
+- **Restrições:** o campo de arquivo PDF, quando preenchido, é imutável em conteúdo — pode ser substituído, nunca editado.
+- **Ciclo de vida:** criado ao cadastrar o catálogo; PDF vinculado posteriormente via upload; exclusão remove peças e marcações dependentes.
+
+### 1.6 Página — `Planejado` (hoje representada apenas como número dentro de Peça/Marcação)
+- **Objetivo:** representar uma página específica dentro do Catálogo.
+- **Descrição:** hoje é um atributo numérico (`pagina`) em `pecas` e `marcacoes`, não uma tabela própria.
+- **Responsabilidades:** servir de referência de localização dentro do documento.
+- **Atributos principais:** número da página, dimensões renderizadas.
+- **Identificador:** composto (Catálogo + número da página), quando formalizado como entidade própria.
+- **Relacionamentos:** pertence a um Catálogo (N:1); pode conter várias Marcações (1:N).
+- **Restrições:** número da página deve ser positivo e não pode exceder o total de páginas do PDF.
+- **Ciclo de vida:** implícito à existência do PDF; não é criada/removida manualmente.
+
+### 1.7 Peça — `Implementado`
+- **Objetivo:** representar um item técnico cadastrado dentro de um catálogo.
+- **Descrição:** unidade central de consulta do sistema — o que o usuário final busca.
+- **Responsabilidades:** armazenar item, código, descrição, quantidade e observações.
+- **Atributos principais:** página, número do item, código, descrição, quantidade, observações.
+- **Identificador:** `id` (uuid).
+- **Relacionamentos:** pertence a um Catálogo (N:1); pode possuir uma ou mais Marcações (1:N); poderá se relacionar com Compatibilidade (N:N, futuro); poderá possuir Imagens, Documentos e Vídeos (1:N, futuro).
+- **Restrições:** deve pertencer a exatamente um catálogo.
+- **Ciclo de vida:** criada pelo Administrador ao registrar uma marcação; futuramente poderá ser criada de forma independente de marcação.
+
+### 1.8 Marcação — `Implementado`
+- **Objetivo:** representar a posição visual de uma Peça sobre uma página do PDF.
+- **Descrição:** existe em camada independente, nunca desenhada sobre o PDF.
+- **Responsabilidades:** guardar coordenada relativa (0–1) e página onde a peça aparece visualmente.
+- **Atributos principais:** página, coordenada X, coordenada Y, largura, altura (opcional para marcações pontuais).
+- **Identificador:** `id` (uuid).
+- **Relacionamentos:** pertence a uma Peça (N:1).
+- **Restrições:** não pode existir sem uma Peça vinculada; coordenadas sempre relativas, nunca em pixels absolutos.
+- **Ciclo de vida:** criada no Modo Administrador; edição e remoção previstas para fase futura.
+
+### 1.9 Área de Seleção — `Planejado`
+- **Objetivo:** representar a região que o usuário está ativamente interagindo (hover ou clique) antes de confirmar uma marcação.
+- **Descrição:** estado temporário e visual, não persistido como marcação até o salvamento.
+- **Responsabilidades:** fornecer feedback visual imediato durante a criação de uma marcação.
+- **Atributos principais:** coordenada temporária, dimensão temporária.
+- **Identificador:** não possui — é um estado de interface, não uma entidade persistida.
+- **Relacionamentos:** pode se tornar uma Marcação ao ser confirmada.
+- **Restrições:** nunca é gravada no banco enquanto não confirmada.
+- **Ciclo de vida:** existe apenas durante a interação do usuário; descartada ao cancelar ou confirmar.
+
+### 1.10 Camada — `Planejado` (hoje implícita na arquitetura, não modelada como dado)
+- **Objetivo:** representar um nível visual independente sobreposto ao PDF (renderização, marcações, seleção, destaque, interface).
+- **Descrição:** conceito estrutural do Workspace, descrito no SDS.md.
+- **Responsabilidades:** isolar responsabilidades visuais sem alterar o documento original.
+- **Atributos principais:** tipo de camada, ordem de sobreposição (z-index conceitual).
+- **Identificador:** não possui identidade persistida — é um conceito de composição visual.
+- **Relacionamentos:** uma Página é composta por várias Camadas.
+- **Restrições:** a Camada de Renderização nunca pode ser alterada por outra camada.
+- **Ciclo de vida:** recriada a cada renderização de página.
+
+### 1.11 Compatibilidade — `Planejado`
+- **Objetivo:** representar a relação de uma Peça com múltiplos Modelos/Implementos.
+- **Descrição:** entidade associativa (N:N) entre Peça e Modelo/Implemento.
+- **Responsabilidades:** permitir consulta "esta peça também é usada em quais outros modelos".
+- **Atributos principais:** peça associada, modelo/implemento associado, observação de compatibilidade.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** associa uma Peça (N:1) a um Modelo ou Implemento (N:1).
+- **Restrições:** nunca altera os dados da Peça original — apenas referencia.
+- **Ciclo de vida:** planejado para fase de Compatibilidade.
+
+### 1.12 Imagem — `Planejado`
+- **Objetivo:** representar uma foto real de uma Peça.
+- **Descrição:** mídia armazenada no Storage, referenciada pela Peça.
+- **Responsabilidades:** complementar visualmente a descrição textual da peça.
+- **Atributos principais:** referência ao arquivo, legenda opcional.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** pertence a uma Peça (N:1).
+- **Restrições:** não substitui a marcação — é conteúdo adicional.
+- **Ciclo de vida:** planejado para fase de Fotos e Mídias.
+
+### 1.13 Documento — `Planejado`
+- **Objetivo:** representar um documento técnico adicional vinculado a uma Peça (ex: ficha técnica).
+- **Descrição:** mídia armazenada no Storage, distinta do Catálogo (PDF principal).
+- **Responsabilidades:** fornecer informação técnica complementar.
+- **Atributos principais:** referência ao arquivo, tipo de documento, descrição.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** pertence a uma Peça (N:1).
+- **Restrições:** nunca deve ser confundido com o Catálogo original.
+- **Ciclo de vida:** planejado para fase de Fotos e Mídias.
+
+### 1.14 Vídeo — `Planejado`
+- **Objetivo:** representar conteúdo em vídeo vinculado a uma Peça (ex: instrução de instalação).
+- **Descrição:** mídia armazenada no Storage ou referenciada por link externo.
+- **Responsabilidades:** complementar a compreensão da peça com conteúdo audiovisual.
+- **Atributos principais:** referência ao arquivo ou link, descrição.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** pertence a uma Peça (N:1).
+- **Restrições:** nenhuma alteração de conteúdo pelo sistema, apenas referência.
+- **Ciclo de vida:** planejado para fase de Fotos e Mídias.
+
+### 1.15 Usuário — `Planejado`
+- **Objetivo:** representar uma pessoa que acessa o sistema.
+- **Descrição:** hoje inexistente como entidade — acesso administrativo é feito sem login.
+- **Responsabilidades:** identificar quem realiza cada ação (auditoria futura).
+- **Atributos principais:** nome, e-mail, perfil associado.
+- **Identificador:** `id` (uuid, compatível com Supabase Auth quando implementado).
+- **Relacionamentos:** possui um Perfil (N:1); pode gerar muitos Logs e Históricos.
+- **Restrições:** nenhuma nesta fase, por não existir ainda.
+- **Ciclo de vida:** planejado para fase de Autenticação.
+
+### 1.16 Perfil — `Planejado`
+- **Objetivo:** representar o papel de um Usuário no sistema (ex: Administrador, Consulta).
+- **Descrição:** já existe conceitualmente no PRS.md como "perfil", ainda sem persistência.
+- **Responsabilidades:** determinar quais Permissões um Usuário possui.
+- **Atributos principais:** nome do perfil, descrição.
+- **Identificador:** `id` (uuid, quando implementado) ou enumeração fixa (ver seção de Enumerações).
+- **Relacionamentos:** possui muitas Permissões (N:N); associado a muitos Usuários (1:N).
+- **Restrições:** todo Usuário deve ter exatamente um Perfil.
+- **Ciclo de vida:** planejado para fase de Autenticação.
+
+### 1.17 Permissão — `Planejado`
+- **Objetivo:** representar uma capacidade específica dentro do sistema (ex: criar marcação, editar catálogo).
+- **Descrição:** granularidade fina de controle de acesso.
+- **Responsabilidades:** habilitar ou bloquear uma ação para um Perfil.
+- **Atributos principais:** nome da permissão, módulo relacionado.
+- **Identificador:** `id` (uuid, quando implementado) ou chave fixa.
+- **Relacionamentos:** associada a muitos Perfis (N:N).
+- **Restrições:** nenhuma ação sensível pode existir sem uma Permissão associável.
+- **Ciclo de vida:** planejado para fase de Autenticação.
+
+### 1.18 Workspace — `Implementado` (como conceito de módulo, não como registro de dado)
+- **Objetivo:** representar o ambiente onde o catálogo é visualizado e manipulado.
+- **Descrição:** módulo central descrito no SDS.md; não é uma entidade persistida, é um contexto de execução.
+- **Responsabilidades:** combinar Camadas sobre uma Página de um Catálogo.
+- **Atributos principais:** catálogo atual, página atual, escala/zoom atual, modo (Administrador/Consulta).
+- **Identificador:** não possui — é estado de sessão, não dado persistente.
+- **Relacionamentos:** opera sobre um Catálogo; utilizado por um Usuário/Sessão.
+- **Restrições:** nunca modifica o PDF original.
+- **Ciclo de vida:** existe durante a sessão de uso; estado descartado ao fechar a página.
+
+### 1.19 Projeto — `Planejado`
+- **Objetivo:** representar um agrupamento de trabalho maior que um catálogo isolado (ex: todos os catálogos de uma concessionária).
+- **Descrição:** entidade organizacional para uso futuro em contas empresariais.
+- **Responsabilidades:** agrupar múltiplos Catálogos/Fabricantes sob um mesmo contexto de cliente.
+- **Atributos principais:** nome, responsável.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** pode agrupar múltiplos Catálogos (1:N, futuro).
+- **Restrições:** nenhuma nesta fase.
+- **Ciclo de vida:** planejado para fase de Integrações/Contas.
+
+### 1.20 Sessão — `Planejado`
+- **Objetivo:** representar um período de uso do sistema por um Usuário.
+- **Descrição:** relevante quando autenticação for implementada.
+- **Responsabilidades:** manter o estado do Workspace associado a um Usuário durante o uso.
+- **Atributos principais:** início, término, usuário associado.
+- **Identificador:** `id` (uuid ou token, quando implementado).
+- **Relacionamentos:** pertence a um Usuário (N:1).
+- **Restrições:** nenhuma nesta fase.
+- **Ciclo de vida:** planejado para fase de Autenticação.
+
+### 1.21 Histórico — `Planejado` (parcialmente presente como `criado_em` em todas as tabelas)
+- **Objetivo:** representar o registro de mudanças ocorridas em uma entidade ao longo do tempo.
+- **Descrição:** hoje limitado ao campo de criação; sem trilha completa de alterações.
+- **Responsabilidades:** permitir auditoria e reconstrução de estados anteriores.
+- **Atributos principais:** entidade afetada, tipo de alteração, momento, usuário responsável (futuro).
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** referencia qualquer entidade do domínio.
+- **Restrições:** nunca deve permitir alterar o passado registrado.
+- **Ciclo de vida:** planejado para fase de Administração avançada.
+
+### 1.22 Log — `Planejado` (hoje restrito ao console do navegador)
+- **Objetivo:** representar o registro técnico de eventos e erros do sistema.
+- **Descrição:** distinto de Histórico — Log é técnico/operacional, Histórico é de negócio.
+- **Responsabilidades:** apoiar diagnóstico e monitoramento.
+- **Atributos principais:** nível (informação/erro), mensagem, contexto, momento.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** pode referenciar qualquer módulo ou serviço.
+- **Restrições:** não deve conter dados sensíveis de usuário em texto livre.
+- **Ciclo de vida:** planejado para fase de Administração avançada.
+
+### 1.23 Anotação — `Planejado`
+- **Objetivo:** representar uma nota textual livre associada a uma Peça ou Catálogo, distinta das Observações estruturadas da Peça.
+- **Descrição:** pensada para uso interno de equipe (ex: "conferir código com fabricante").
+- **Responsabilidades:** registrar comentários que não fazem parte do dado técnico oficial da peça.
+- **Atributos principais:** texto, autor, referência à entidade anotada.
+- **Identificador:** `id` (uuid, quando implementado).
+- **Relacionamentos:** associada a uma Peça ou Catálogo (N:1).
+- **Restrições:** nunca deve ser exibida como se fosse dado oficial da peça.
+- **Ciclo de vida:** planejado para fase de Workspace avançado.
+
+### 1.24 Favorito — `Planejado`
+- **Objetivo:** representar a marcação pessoal de um Usuário sobre uma Peça ou Catálogo de interesse recorrente.
+- **Descrição:** relação simples entre Usuário e outra entidade.
+- **Responsabilidades:** permitir acesso rápido a itens frequentemente consultados.
+- **Atributos principais:** usuário, entidade favoritada, momento.
+- **Identificador:** `id` (uuid, quando implementado) ou chave composta (usuário + entidade).
+- **Relacionamentos:** associa um Usuário (N:1) a uma Peça ou Catálogo (N:1).
+- **Restrições:** depende da existência de Usuário — não aplicável antes da Autenticação.
+- **Ciclo de vida:** planejado para fase de Autenticação/Consulta avançada.
+
+### 1.25 Pesquisa — `Planejado`
+- **Objetivo:** representar a ação de busca por código ou descrição.
+- **Descrição:** evento de consulta, não necessariamente persistido, mas modelável para métricas futuras.
+- **Responsabilidades:** capturar o termo buscado e disparar a localização de peças.
+- **Atributos principais:** termo buscado, momento, usuário (opcional).
+- **Identificador:** `id` (uuid, quando persistida para métricas).
+- **Relacionamentos:** gera um ou mais Resultados de Pesquisa.
+- **Restrições:** nenhuma nesta fase.
+- **Ciclo de vida:** planejado para fase de Pesquisa.
+
+### 1.26 Resultado de Pesquisa — `Planejado`
+- **Objetivo:** representar cada Peça retornada por uma Pesquisa.
+- **Descrição:** entidade transitória, calculada, não persistida por padrão.
+- **Responsabilidades:** relacionar uma Pesquisa às Peças correspondentes.
+- **Atributos principais:** peça encontrada, grau de relevância (futuro, com busca semântica).
+- **Identificador:** não possui — é uma projeção calculada.
+- **Relacionamentos:** associa uma Pesquisa (N:1) a uma Peça (N:1).
+- **Restrições:** nunca altera a Peça original.
+- **Ciclo de vida:** existe apenas durante a exibição dos resultados.
+
+### 1.27 Upload — `Planejado` (hoje realizado manualmente via painel do Supabase)
+- **Objetivo:** representar o processo de envio de um arquivo (PDF, imagem, vídeo, documento) para o Storage.
+- **Descrição:** ainda não possui interface própria no sistema — é feito manualmente pelo administrador técnico.
+- **Responsabilidades:** transferir um arquivo do dispositivo do usuário para o Storage e gerar sua referência.
+- **Atributos principais:** arquivo, tipo, entidade de destino (Catálogo, Peça).
+- **Identificador:** não possui identidade própria — é um processo, não uma entidade persistida.
+- **Relacionamentos:** resulta em uma referência armazenada em Catálogo, Imagem, Documento ou Vídeo.
+- **Restrições:** nunca deve sobrescrever um PDF já vinculado sem confirmação explícita.
+- **Ciclo de vida:** planejado para fase de Upload de PDF.
+
+### 1.28 Storage — `Implementado` (como conceito de camada; hoje operado manualmente)
+- **Objetivo:** representar o armazenamento de arquivos binários do sistema.
+- **Descrição:** hoje é o Supabase Storage, usado manualmente para hospedar o PDF de teste.
+- **Responsabilidades:** guardar arquivos e fornecer uma URL de acesso.
+- **Atributos principais:** não é uma entidade de negócio — é infraestrutura referenciada por outras entidades.
+- **Identificador:** caminho/URL do arquivo.
+- **Relacionamentos:** referenciado por Catálogo, e futuramente por Imagem, Documento e Vídeo.
+- **Restrições:** nunca deve alterar o conteúdo de um arquivo já enviado — apenas substituir ou remover.
+- **Ciclo de vida:** independente do ciclo de vida do banco relacional.
+
+### 1.29 Evento — `Implementado` (como conceito arquitetural, descrito no SDS.md)
+- **Objetivo:** representar uma ocorrência relevante que outros módulos podem escutar.
+- **Descrição:** parte do Core do sistema; catálogo formal mantido no SDS.md.
+- **Responsabilidades:** permitir comunicação entre módulos sem acoplamento direto.
+- **Atributos principais:** nome do evento, dados associados (payload).
+- **Identificador:** não possui — é uma ocorrência, não um registro persistente por padrão.
+- **Relacionamentos:** pode ser disparado por qualquer módulo e escutado por qualquer outro.
+- **Restrições:** nomenclatura deve seguir o padrão `contexto.acao` definido no SDS.md.
+- **Ciclo de vida:** instantâneo — existe apenas no momento em que ocorre.
+
+### 1.30 Configuração — `Implementado` (parcialmente, via tabelas `modulos`, `versoes`, `documentos_central`)
+- **Objetivo:** representar parâmetros ajustáveis do sistema sem necessidade de alteração de código.
+- **Descrição:** hoje usada pela Central de Desenvolvimento para status de módulos, versões e documentos.
+- **Responsabilidades:** fornecer dados dinâmicos de exibição e comportamento.
+- **Atributos principais:** chave, valor, categoria.
+- **Identificador:** `id` (uuid) ou chave única, conforme a tabela específica.
+- **Relacionamentos:** consumida pelo Core e por módulos administrativos.
+- **Restrições:** nunca deve conter regra de negócio crítica embutida como texto livre sem validação.
+- **Ciclo de vida:** editável a qualquer momento pelo Administrador, sem necessidade de novo deploy.
+
+---
+
+## 2. Relacionamentos
+
+### 2.1 Cadeia principal do domínio
+
+```
+Fabricante
+   ↓ 1:N
+Modelo
+   ↓ 1:N (planejado: via Implemento → Versão)
+Implemento *(planejado)*
+   ↓ 1:N
+Versão *(planejado)*
+   ↓ 1:N
+Catálogo
+   ↓ 1:N (implícito)
+Página *(planejado como entidade própria)*
+   ↓ 1:N
+Peça
+   ↓ 1:N
+Marcação
+```
+
+### 2.2 Relacionamentos complementares
+
+| Relação | Cardinalidade | Tipo |
+|---|---|---|
+| Fabricante → Modelo | 1:N | Composição (modelo não existe sem fabricante) |
+| Modelo → Catálogo | 1:N | Composição |
+| Catálogo → Peça | 1:N | Composição |
+| Peça → Marcação | 1:N | Composição |
+| Peça ↔ Modelo/Implemento (Compatibilidade) | N:N | Agregação (associação sem posse exclusiva) |
+| Peça → Imagem | 1:N | Composição *(planejado)* |
+| Peça → Documento | 1:N | Composição *(planejado)* |
+| Peça → Vídeo | 1:N | Composição *(planejado)* |
+| Página → Camada | 1:N | Composição conceitual (não persistida) |
+| Usuário → Perfil | N:1 | Dependência *(planejado)* |
+| Perfil ↔ Permissão | N:N | Agregação *(planejado)* |
+| Usuário → Sessão | 1:N | Composição *(planejado)* |
+| Pesquisa → Resultado de Pesquisa | 1:N | Agregação transitória *(planejado)* |
+| Catálogo → Storage (arquivo PDF) | N:1 | Dependência |
+| Qualquer entidade → Histórico | 1:N | Agregação *(planejado)* |
+| Qualquer módulo → Evento | N:N | Dependência (comunicação, não posse) |
+
+Não há herança formal no domínio atual — todas as relações são de composição, agregação ou dependência. Herança poderá surgir futuramente se Imagem, Documento e Vídeo forem unificados sob uma entidade abstrata comum (`Mídia`), mas essa decisão não é tomada neste documento.
+
+---
+
+## 3. Regras de Domínio
+
+1. Uma Peça pertence exclusivamente a um Catálogo.
+2. Uma Marcação pertence exclusivamente a uma Peça.
+3. Uma Peça pode existir em vários Implementos por meio da entidade Compatibilidade, sem duplicar seu cadastro.
+4. Uma Compatibilidade nunca altera os dados originais da Peça — apenas cria uma associação.
+5. O PDF original de um Catálogo nunca pode ser modificado, apenas substituído por um novo upload.
+6. As Camadas (Renderização, Marcações, Seleção, Destaque, Interface) são independentes entre si.
+7. As Marcações nunca fazem parte do arquivo PDF — sempre residem em banco de dados e são renderizadas por cima.
+8. Um Modelo pertence exclusivamente a um Fabricante.
+9. Um Catálogo pertence exclusivamente a um Modelo (ou, quando implementado, a uma Versão).
+10. Nenhuma Imagem, Documento ou Vídeo existe sem uma Peça associada.
+11. Nenhum Usuário pode operar o sistema sem um Perfil, quando a Autenticação for implementada.
+12. Um Favorito depende da existência simultânea de um Usuário e da entidade favoritada.
+13. Um Resultado de Pesquisa nunca é persistido como verdade permanente — é uma projeção momentânea sobre os dados reais.
+
+---
+
+## 4. Objetos de Valor (Value Objects)
+
+Diferente das Entidades, os Objetos de Valor não possuem identidade própria — são definidos inteiramente pelos seus atributos e podem ser substituídos livremente.
+
+| Objeto de Valor | Descrição |
+|---|---|
+| **Coordenada** | Par de valores (x, y), sempre relativo (0 a 1), representando posição sobre uma página. |
+| **Dimensão** | Par de valores (largura, altura), relativo, usado por marcações em área (não pontuais). |
+| **Página (número)** | Valor inteiro positivo identificando a posição de uma página dentro de um Catálogo. |
+| **Cor** | Valor usado para diferenciar visualmente tipos de marcação ou destaque *(planejado)*. |
+| **Escala** | Fator numérico aplicado à renderização do PDF (zoom). |
+| **Zoom** | Sinônimo funcional de Escala no contexto do Workspace. |
+| **Idioma** | Código de idioma para exibição futura multilíngue *(planejado)*. |
+| **Unidade** | Unidade de medida associada a um atributo técnico de peça, quando aplicável *(planejado)*. |
+| **Precisão** | Grau de confiança de um dado gerado automaticamente (ex: por OCR ou IA) *(planejado)*. |
+
+---
+
+## 5. Enumerações
+
+| Enumeração | Valores |
+|---|---|
+| **Status (Módulo)** | `concluido`, `em_desenvolvimento`, `pendente` |
+| **Status (Entidade genérica)** | `ativo`, `inativo`, `arquivado` *(planejado, fora de Módulo)* |
+| **Tipo de Usuário / Perfil** | `administrador`, `empresa`, `concessionaria`, `revenda`, `oficina`, `mecanico`, `balconista`, `cliente_final` *(planejado)* |
+| **Tipo de Marcação** | `ponto`, `area` *(planejado — hoje o sistema opera apenas com marcações pontuais)* |
+| **Tipo de Mídia** | `imagem`, `documento`, `video` *(planejado)* |
+| **Tipo de Pesquisa** | `codigo`, `descricao` *(planejado)* |
+| **Tipo de Camada** | `renderizacao`, `marcacoes`, `selecao`, `destaque`, `interface` |
+| **Modo do Workspace** | `administrador`, `consulta` |
+| **Tipo de Permissão** | `criar`, `editar`, `remover`, `visualizar` *(planejado)* |
+
+---
+
+## 6. Identidade
+
+**Possuem identidade própria (Entidades):**
+Fabricante, Modelo, Implemento, Versão, Catálogo, Peça, Marcação, Compatibilidade, Imagem, Documento, Vídeo, Usuário, Perfil, Permissão, Projeto, Sessão, Histórico, Log, Anotação, Favorito, Pesquisa (quando persistida), Configuração.
+
+**Não possuem identidade própria (Objetos de Valor ou conceitos transitórios):**
+Coordenada, Dimensão, Página (número), Cor, Escala, Zoom, Idioma, Unidade, Precisão, Área de Seleção, Camada (como conceito visual), Workspace (como estado de sessão), Resultado de Pesquisa, Upload (como processo), Evento (como ocorrência), Storage (como infraestrutura referenciada por URL/caminho).
+
+A regra geral: se dois registros com os mesmos atributos podem ser tratados como **o mesmo objeto**, é um Objeto de Valor. Se precisam ser distinguíveis mesmo com atributos idênticos (ex: duas peças chamadas "Parafuso M8" em catálogos diferentes), é uma Entidade.
+
+---
+
+## 7. Invariantes
+
+Regras que **nunca podem ser quebradas** em nenhuma implementação, presente ou futura:
+
+1. Nenhuma Marcação existe sem uma Peça associada.
+2. Nenhuma Peça existe sem um Catálogo associado.
+3. Nenhuma Página é referenciada fora dos limites reais do PDF do Catálogo correspondente.
+4. Nenhum Catálogo existe sem um Modelo associado.
+5. Nenhum Modelo existe sem um Fabricante associado.
+6. O PDF original nunca é alterado, sob nenhuma circunstância ou funcionalidade futura.
+7. As coordenadas de Marcação são sempre relativas (0 a 1), nunca absolutas em pixel.
+8. Uma Compatibilidade nunca duplica ou modifica os dados de uma Peça — apenas referencia.
+9. Nenhuma entidade de Mídia (Imagem, Documento, Vídeo) existe sem uma Peça associada, quando implementada.
+10. Nenhuma ação administrativa (criação, edição, remoção) ocorre sem passar pelos Serviços definidos no SDS.md — nenhuma entidade é alterada diretamente por uma camada de interface.
+
+---
+
+## 8. Preparação para Inteligência Artificial
+
+Este domínio foi desenhado para que as funcionalidades futuras abaixo não exijam redesenho estrutural — apenas preenchimento automático do que hoje é manual:
+
+- **OCR:** como Peça e Marcação já são entidades separadas, um mecanismo de OCR poderá gerar automaticamente os mesmos registros (número do item, código, descrição) hoje digitados manualmente, preenchendo os mesmos campos.
+- **Busca Semântica:** a entidade Pesquisa já prevê o conceito de Resultado de Pesquisa com grau de relevância — um campo de similaridade (score) pode ser adicionado sem alterar o relacionamento entre Pesquisa e Peça.
+- **Embeddings e Vetores:** por não fazerem parte do domínio de negócio (são uma representação técnica interna do texto/imagem de uma Peça), poderão ser armazenados como um atributo técnico adicional da Peça ou Imagem, sem alterar sua identidade ou relacionamentos.
+- **Reconhecimento Visual:** como a Marcação já é desacoplada do PDF e usa coordenadas relativas, um reconhecimento automático de desenho explodido poderá gerar Marcações da mesma forma que o Administrador faz manualmente hoje.
+- **Compatibilidade Automática:** a entidade Compatibilidade já existe conceitualmente como associação N:N entre Peça e Modelo/Implemento; um mecanismo automático apenas passará a alimentar essa mesma tabela, com um campo adicional de origem (`manual` ou `automatico`) e confiança (Precisão).
+
+Nenhuma dessas capacidades é implementada neste documento — apenas garantida como compatível com o modelo de domínio definido.
+
+---
+
+*Fim do documento SDM.md*
