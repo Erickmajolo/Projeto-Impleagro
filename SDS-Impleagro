@@ -1,0 +1,372 @@
+# SDS.md — Software Design Specification
+## Catálogo Inteligente de Peças Agrícolas
+
+**Versão:** 0.1
+**Depende de:** PRS.md (referência de negócio — este documento trata exclusivamente de COMO o sistema é construído)
+**Público:** qualquer modelo de IA ou pessoa que precise implementar ou revisar este sistema, sem depender de contexto de conversas anteriores.
+
+---
+
+## 1. Contexto Técnico Resumido
+
+O sistema é uma plataforma web de consulta a catálogos técnicos de peças agrícolas. Ele é construído em **HTML, CSS e JavaScript puros** (sem processo de build/bundler), com **Supabase (PostgreSQL)** como banco de dados e storage, **PDF.js** para renderização de PDF no navegador, e hospedagem estática (GitHub Pages ou Vercel). Todo o desenvolvimento ocorre 100% online, sem instalação local, e usando apenas ferramentas com plano gratuito.
+
+---
+
+## 2. Princípios Obrigatórios da Arquitetura
+
+Nenhuma implementação pode contrariar os princípios abaixo:
+
+1. O **PDF original é imutável** — nunca é editado, recomposto ou reescrito.
+2. Toda informação adicional (peças, marcações, metadados) existe em **camadas independentes**, nunca embutida no PDF.
+3. O sistema é **modular**: cada módulo tem responsabilidade única.
+4. Componentes são **reutilizáveis** entre módulos.
+5. **Baixo acoplamento** entre módulos; **alta coesão** dentro de cada módulo.
+6. A arquitetura deve suportar crescimento (mais fabricantes, catálogos, peças) sem redesenho estrutural.
+7. O sistema é **multi-fabricante** por padrão — nenhuma regra específica de marca.
+8. A estrutura de dados deve estar **preparada para OCR e IA**, sem implementá-los agora.
+9. Nenhuma dependência paga é aceita nesta fase.
+
+---
+
+## 3. Visão Geral da Arquitetura
+
+```
+Navegador
+   ↓
+Frontend (HTML/CSS/JS, páginas estáticas)
+   ↓
+Core (configuração, estado, eventos, serviços compartilhados)
+   ↓
+Módulos (Administrador, Workspace, Consulta, Pesquisa, Compatibilidade, Central de Desenvolvimento...)
+   ↓
+Serviços (Banco, Storage, PDF, Pesquisa, Configuração, Compatibilidade, Documentação)
+   ↓
+Banco de Dados (PostgreSQL via Supabase)
+   ↓
+Storage (arquivos PDF, futuramente fotos/vídeos/documentos)
+```
+
+Cada seta representa uma dependência de **uso**, nunca de conhecimento reverso: uma camada inferior nunca conhece detalhes de uma camada superior. O Frontend consome o Core; o Core consome Serviços; Serviços conversam com Banco e Storage.
+
+---
+
+## 4. Camadas do Sistema
+
+| Camada | Responsabilidade | Nunca deve fazer |
+|---|---|---|
+| **1. Interface (UI)** | Renderizar telas, capturar interação do usuário. | Conter regra de negócio ou acesso direto ao banco sem passar por um serviço. |
+| **2. Workspace** | Ambiente onde o PDF é aberto e as camadas são combinadas (renderização + marcações). | Alterar o arquivo PDF. |
+| **3. Core** | Configuração, eventos, estado global, serviços compartilhados. | Conhecer regras específicas de um módulo. |
+| **4. Serviços** | Abstrair o acesso a banco, storage, pesquisa, configuração. | Conter lógica de apresentação (HTML/CSS). |
+| **5. Banco de Dados** | Persistir dados estruturados e relacionais. | Armazenar o PDF em si (isso é papel do Storage). |
+| **6. Storage** | Armazenar arquivos binários (PDFs, futuramente fotos/vídeos). | Armazenar dados relacionais. |
+| **7. Documentação** | Registrar decisões, regras e roadmap, em Markdown. | Conter código executável. |
+| **8. Administração** | Central de Desenvolvimento — status do projeto, roadmap, versão. | Ser acessível a usuários de consulta. |
+| **9. Laboratório (futuro)** | Espaço para testar OCR/IA antes de integrar ao produto. | Afetar dados de produção. |
+| **10. Integrações Futuras** | ERP, estoque, API pública. | Existir nesta fase — apenas preparado estruturalmente. |
+
+---
+
+## 5. Core do Sistema
+
+O **Core** é a base compartilhada por todos os módulos. Suas responsabilidades:
+
+- **Configuração** — leitura de variáveis de conexão (Supabase URL/chave), sem valores fixos espalhados pelo código.
+- **Eventos** — um barramento simples de eventos que módulos disparam e escutam (ver seção 9).
+- **Autenticação futura** — hoje inexistente; o Core reserva o espaço para isso sem exigir mudança estrutural quando for implementado.
+- **Serviços compartilhados** — acesso ao banco e ao storage, usado por qualquer módulo.
+- **Estado global** — informações comuns à sessão atual (ex: catálogo aberto, página atual, modo administrador ativo).
+- **Versionamento** — leitura da versão atual do sistema (tabela `versoes`).
+- **Logs** — registro básico de erros no console, evoluindo futuramente para um serviço próprio.
+- **Cache futuro** — reservado; nenhum cache é implementado nesta fase.
+
+**Regra fundamental:** o Core nunca importa ou referencia um módulo específico. A relação de dependência é sempre módulo → Core, nunca o contrário.
+
+---
+
+## 6. Módulos
+
+### 6.1 Administrador
+- **Objetivo:** permitir cadastro de peças e criação de marcações sobre o PDF.
+- **Responsabilidades:** capturar clique sobre o documento, abrir formulário, gravar peça e marcação.
+- **Dependências:** Core, Serviço de Banco, Workspace.
+- **Entradas:** clique do usuário (coordenadas relativas), dados do formulário.
+- **Saídas:** registro em `pecas` e `marcacoes`.
+- **Eventos:** dispara `marcacao.criada`.
+
+### 6.2 Workspace
+- **Objetivo:** ambiente central onde o catálogo é aberto e todas as camadas visuais se combinam.
+- **Responsabilidades:** orquestrar renderização do PDF + camada de marcações + camada de interface.
+- **Dependências:** Core, Serviço de PDF, Serviço de Banco.
+- **Entradas:** identificador do catálogo.
+- **Saídas:** página renderizada com marcações posicionadas.
+- **Eventos:** escuta e dispara `catalogo.carregado`, `pagina.alterada`, `zoom.alterado`.
+
+### 6.3 Consulta
+- **Objetivo:** permitir que usuários sem permissão administrativa visualizem catálogo e peças.
+- **Responsabilidades:** exibir marcações de forma discreta; abrir cartão de informação ao clique.
+- **Dependências:** Core, Workspace, Serviço de Banco.
+- **Entradas:** clique sobre marcação existente.
+- **Saídas:** exibição de dados da peça.
+- **Eventos:** dispara `peca.selecionada`.
+
+### 6.4 Pesquisa *(futuro)*
+- **Objetivo:** localizar peça por código ou descrição.
+- **Responsabilidades:** consultar o banco e destacar a peça encontrada no Workspace.
+- **Dependências:** Core, Serviço de Pesquisa, Workspace.
+- **Entradas:** termo de busca.
+- **Saídas:** lista de resultados; evento de destaque.
+- **Eventos:** dispara `pesquisa.realizada`.
+
+### 6.5 Compatibilidade *(futuro)*
+- **Objetivo:** relacionar uma peça a múltiplos modelos/implementos.
+- **Responsabilidades:** consultar e exibir onde mais uma peça é utilizada.
+- **Dependências:** Core, Serviço de Compatibilidade.
+- **Entradas:** identificador da peça.
+- **Saídas:** lista de modelos compatíveis.
+- **Eventos:** dispara `compatibilidade.encontrada`.
+
+### 6.6 Configurações
+- **Objetivo:** centralizar parâmetros do sistema (conexões, preferências).
+- **Responsabilidades:** ler/gravar configuração via Serviço de Configuração.
+- **Dependências:** Core.
+- **Entradas/Saídas:** pares de chave/valor de configuração.
+
+### 6.7 Central de Desenvolvimento
+- **Objetivo:** área interna com status do projeto (módulos, versão, documentação).
+- **Responsabilidades:** ler tabelas de configuração dinâmica (`modulos`, `versoes`, `documentos_central`) e exibir dashboard.
+- **Dependências:** Core, Serviço de Banco, Serviço de Documentação.
+- **Entradas:** nenhuma (leitura).
+- **Saídas:** dashboard visual.
+- **Restrição:** não acessível a usuários de consulta; sem link público.
+
+### 6.8 Documentação
+- **Objetivo:** manter e expor os documentos oficiais do projeto (`/docs`).
+- **Responsabilidades:** listar e linkar documentos a partir de configuração no banco.
+- **Dependências:** Serviço de Documentação.
+
+### 6.9 Laboratório *(futuro)*
+- **Objetivo:** ambiente isolado para testar OCR e IA antes de integrar ao produto real.
+- **Responsabilidades:** processar dados de teste sem afetar tabelas de produção.
+
+### 6.10 API futura
+- **Objetivo:** expor dados do sistema para integrações externas (ERP, estoque).
+- **Responsabilidades:** camada de acesso externo, autenticada, isolada dos módulos internos.
+
+---
+
+## 7. Workspace (Detalhamento)
+
+O Workspace é o **centro operacional da plataforma** — é onde o catálogo realmente é exibido e manipulado. Ele:
+
+- Recebe o identificador de um catálogo e solicita ao Serviço de PDF a abertura do arquivo.
+- Renderiza a página atual do PDF em um elemento gráfico (canvas), sem qualquer modificação de conteúdo.
+- Sobrepõe, na mesma posição e escala, a Camada de Marcações — obtida do Serviço de Banco.
+- É o único lugar onde módulos como Administrador e Consulta se conectam para exibir ou capturar interação.
+- **Nunca escreve no arquivo PDF.** Toda interação do usuário gera dados em banco, não altera o documento.
+
+Módulos não acessam o PDF diretamente — sempre passam pelo Workspace, que centraliza essa responsabilidade.
+
+---
+
+## 8. Visualizador de PDF
+
+Responsabilidades específicas da renderização do documento:
+
+- **Renderização** — desenhar a página do PDF em um elemento gráfico, na escala atual.
+- **Zoom** — ajustar a escala de renderização, mantendo a camada de marcações sincronizada.
+- **Miniaturas** — versões reduzidas de cada página, para navegação rápida.
+- **Paginação** — controle de página atual/total, navegação sequencial ou direta.
+- **Camada de marcações** — pontos posicionados sobre a página, vinculados a peças.
+- **Camada de seleção** — indica visualmente qual marcação está ativa/selecionada.
+- **Camada de destaque** *(futuro)* — realce visual de uma peça localizada via pesquisa.
+
+**Regra inegociável:** em nenhuma dessas responsabilidades o conteúdo do PDF é alterado. Zoom, marcação e destaque são sempre elementos visuais externos, sobrepostos.
+
+---
+
+## 9. Sistema de Camadas
+
+```
+PDF Original (imutável)
+   ↓
+Camada de Renderização   → desenha o conteúdo do PDF, sem alterá-lo
+   ↓
+Camada de Marcações      → pontos vinculados a peças, posição relativa (0–1)
+   ↓
+Camada de Seleção        → indica a marcação atualmente ativa
+   ↓
+Camada de Destaque       → realce de peça encontrada por pesquisa (futuro)
+   ↓
+Camada de Interface      → controles (zoom, navegação, painel lateral)
+```
+
+Cada camada é **independente e substituível**: é possível alterar como marcações são exibidas, adicionar uma camada de anotação de IA, ou remover a camada de destaque, sem tocar nas demais. As coordenadas de marcação são armazenadas como fração da página (0 a 1), não em pixels, garantindo que qualquer camada se reposicione corretamente em qualquer zoom ou tamanho de tela.
+
+---
+
+## 10. Catálogo de Eventos
+
+| Evento | Função |
+|---|---|
+| `catalogo.carregado` | Disparado quando um catálogo termina de ser aberto no Workspace. |
+| `pagina.alterada` | Disparado ao navegar entre páginas do PDF. |
+| `peca.selecionada` | Disparado quando o usuário clica em uma marcação existente. |
+| `pesquisa.realizada` | Disparado ao executar uma busca por código ou descrição *(futuro)*. |
+| `marcacao.criada` | Disparado quando o administrador salva uma nova marcação. |
+| `marcacao.editada` | Disparado ao editar uma marcação existente *(futuro)*. |
+| `marcacao.removida` | Disparado ao excluir uma marcação *(futuro)*. |
+| `compatibilidade.encontrada` | Disparado ao localizar peça equivalente em outro modelo *(futuro)*. |
+| `zoom.alterado` | Disparado ao mudar o nível de zoom do Workspace. |
+| `modo.administrador.ativado` | Disparado ao ligar o Modo Administrador. |
+| `modo.consulta.ativado` | Disparado ao desligar o Modo Administrador (retorno à consulta). |
+
+Eventos existem para permitir que módulos reajam a mudanças sem acoplamento direto entre si — por exemplo, o módulo de Pesquisa pode escutar `pesquisa.realizada` e pedir ao Workspace que dispare `zoom.alterado` e `pagina.alterada` para levar o usuário até a peça, sem que Pesquisa precise conhecer os detalhes internos do Workspace.
+
+---
+
+## 11. Fluxo de Dados
+
+```
+Administrador
+   ↓ (cadastra peça e cria marcação)
+Workspace
+   ↓ (grava via Serviço de Banco)
+Banco de Dados
+   ↓ (dado persistido, disponível para leitura)
+Consulta
+   ↓ (lê peça e marcação via Serviço de Banco)
+Workspace
+   ↓ (renderiza camada de marcações sobre o PDF)
+Usuário
+```
+
+Todo dado gerado pelo Administrador passa a existir no banco antes de qualquer usuário de Consulta conseguir vê-lo — não há estado intermediário exclusivo de tela. Isso garante que qualquer sessão (administrador ou consulta) sempre reflete o estado real e atual do banco.
+
+---
+
+## 12. Padrões de Nomenclatura
+
+- **Módulos:** substantivo único, em português, minúsculo (`workspace`, `pesquisa`, `compatibilidade`).
+- **Componentes:** nome descritivo em português (`painel-lateral`, `barra-superior`, `miniaturas`).
+- **Serviços:** sufixo `-service` ou arquivo dentro de `/src/services` nomeado pela responsabilidade (`supabase-client.js`, `queries.js`).
+- **Eventos:** `contexto.acao`, sempre em português e minúsculo (`marcacao.criada`, `pagina.alterada`).
+- **Tabelas do banco:** substantivo no plural, em português, sem acentos (`fabricantes`, `modelos`, `catalogos`, `pecas`, `marcacoes`, `modulos`, `versoes`, `documentos_central`).
+- **Arquivos de página:** nome do módulo em minúsculo (`index.html`, `catalogo.html`, `central.html`).
+- **Documentos:** nome em maiúsculas, extensão `.md` (`PRS.md`, `SDS.md`, `ROADMAP.md`, `ADR.md`).
+
+---
+
+## 13. Estrutura de Pastas
+
+```
+catalogo-pecas-agricolas/
+├── docs/                  → documentação oficial (Markdown). Nunca conter código executável.
+│   ├── EFS/               → especificações funcionais por fase do roadmap.
+│   └── PROMPTS/           → prompts padronizados usados para orientar IAs.
+├── src/
+│   ├── pages/             → páginas HTML completas (index, catalogo, central). Nunca conter regra de negócio complexa inline.
+│   ├── viewer/             → lógica do visualizador de PDF. Nunca conter acesso direto ao banco.
+│   ├── admin/              → lógica exclusiva do Modo Administrador. Nunca ser importado pelo módulo de Consulta.
+│   ├── components/         → elementos de interface reutilizáveis. Nunca conter lógica de acesso a dados.
+│   ├── services/            → acesso a Supabase, banco e configuração. Nunca conter HTML ou CSS.
+│   ├── database/            → consultas centralizadas (queries). Nunca conter lógica de apresentação.
+│   ├── styles/               → variáveis visuais e tema. Nunca conter lógica JavaScript.
+│   └── utils/                 → funções auxiliares pequenas e puras. Nunca conter chamadas de rede.
+├── public/                 → arquivos estáticos servidos diretamente.
+├── assets/                  → ícones e imagens do próprio site (não fotos de peças).
+└── schema.sql / schema-central.sql → definição do banco de dados.
+```
+
+---
+
+## 14. Serviços
+
+- **Serviço de Banco** — centraliza toda leitura/escrita no Supabase; nenhum módulo deve montar consultas SQL fora deste serviço.
+- **Serviço de Storage** — centraliza upload e obtenção de URLs de arquivos (PDFs, futuramente mídias).
+- **Serviço de PDF** — abstrai o uso do PDF.js: abrir documento, obter página, obter viewport.
+- **Serviço de Pesquisa** *(futuro)* — centraliza busca por código/descrição.
+- **Serviço de Configuração** — fornece parâmetros do sistema, evitando valores fixos espalhados.
+- **Serviço de Compatibilidade** *(futuro)* — centraliza consultas de peça-para-múltiplos-modelos.
+- **Serviço de Documentação** — lista documentos disponíveis a partir de configuração em banco.
+
+Nenhum serviço conhece detalhes visuais; nenhuma tela acessa banco ou storage diretamente sem passar por um serviço.
+
+---
+
+## 15. Banco de Dados
+
+- O banco é **exclusivamente relacional** (PostgreSQL) e nunca armazena o conteúdo binário do PDF — apenas a referência ao arquivo no Storage.
+- Toda entidade de negócio (fabricante, modelo, catálogo, peça, marcação) possui identificador `uuid`, permitindo referência estável entre tabelas e módulos futuros.
+- A separação entre `pecas` (dado técnico) e `marcacoes` (posição visual) é proposital: permite no futuro que uma peça exista sem estar necessariamente marcada em um desenho, ou seja referenciada por múltiplas marcações.
+- **Preparação para IA/OCR:** como toda marcação já é armazenada como coordenada relativa vinculada a uma peça, um mecanismo automático de reconhecimento poderá gerar os mesmos registros futuramente, sem mudança de schema — apenas passará a preencher os campos que hoje são preenchidos manualmente.
+- **Preparação para Compatibilidade:** o uso de identificadores `uuid` permite criar futuramente uma tabela de associação `peca_compatibilidade` (peça ↔ modelo) sem alterar as tabelas existentes.
+
+---
+
+## 16. Segurança
+
+- **Administrador** — perfil com permissão de escrita (cadastro e marcação).
+- **Consulta** — perfil somente leitura.
+- **Permissões** — nesta fase, controladas apenas por convenção (área administrativa sem link público); autenticação real é um item de roadmap.
+- **Autenticação futura** — planejada via Supabase Auth, sem exigir mudança estrutural no banco (tabelas já usam `uuid`, compatíveis com vínculo a usuário autenticado).
+- **Auditoria** — hoje limitada aos campos `criado_em`; extensível futuramente com campos de usuário responsável e data de alteração.
+- **Logs** — nesta fase, restritos ao console do navegador; um serviço de logs centralizado é item de roadmap.
+
+---
+
+## 17. Escalabilidade
+
+A arquitetura foi definida para suportar, sem alteração estrutural:
+
+- Centenas de fabricantes — pois `fabricantes` é uma tabela independente, sem limite de linhas.
+- Dezenas de milhares de catálogos — pois `catalogos` referencia apenas `modelo_id`, sem acoplamento a lógica de fabricante específico.
+- Milhões de peças — pois `pecas` é indexável por `catalogo_id` e `id`, sem dependência de estrutura de arquivo.
+- OCR e IA — pois os dados que um reconhecimento automático produziria (peça + coordenada) já seguem exatamente o mesmo formato usado hoje manualmente.
+- API pública — pois todo acesso a dados já passa por serviços centralizados, prontos para serem expostos por uma camada de API sem duplicar lógica.
+- Integração com ERP e estoque — pois as entidades centrais (peça, catálogo) possuem identificadores estáveis, compatíveis com sincronização externa.
+
+---
+
+## 18. Registro de Decisões Arquiteturais (Resumo)
+
+**Decisão 1 — PDF nunca é reprocessado no servidor**
+- *Problema:* processar PDF no servidor exige infraestrutura paga e complexa.
+- *Decisão:* renderizar o PDF direto no navegador via PDF.js.
+- *Justificativa:* elimina custo de processamento e mantém o fluxo 100% online e gratuito.
+- *Consequência:* funcionalidades futuras de OCR precisarão processar o PDF de forma assíncrona, fora do fluxo principal de visualização.
+
+**Decisão 2 — Coordenadas relativas em vez de pixels**
+- *Problema:* posições em pixel quebram ao mudar zoom ou tamanho de tela.
+- *Decisão:* armazenar coordenadas como fração (0 a 1) da página.
+- *Justificativa:* garante consistência visual em qualquer escala.
+- *Consequência:* toda camada de renderização precisa multiplicar a fração pela dimensão atual do canvas.
+
+**Decisão 3 — Sem bundler/build**
+- *Problema:* ferramentas de build (Vite, Webpack) exigem instalação local ou linha de comando.
+- *Decisão:* usar HTML/CSS/JS puros, carregados via `<script>`.
+- *Justificativa:* mantém o requisito de desenvolvimento 100% online, sem instalação.
+- *Consequência:* organização modular é feita por arquivos separados, não por um sistema de módulos empacotado.
+
+**Decisão 4 — Configuração dinâmica via banco, não fixa em código**
+- *Problema:* status de roadmap e documentação fixos em código exigem deploy para qualquer atualização.
+- *Decisão:* tabelas `modulos`, `versoes`, `documentos_central` alimentam a Central de Desenvolvimento.
+- *Justificativa:* permite atualizar o dashboard sem alterar código.
+- *Consequência:* qualquer novo módulo/versão/documento deve ser cadastrado no banco, não apenas descrito em documentação.
+
+---
+
+## 19. Princípios de Qualidade
+
+- Código simples: preferir a solução mais direta que atenda ao requisito atual.
+- Código modular: cada arquivo com responsabilidade única e clara.
+- Baixo acoplamento: módulos não devem importar detalhes internos uns dos outros.
+- Alta reutilização: componentes de interface e serviços compartilhados entre módulos.
+- Documentação obrigatória: toda decisão relevante registrada em `/docs`, não apenas no histórico de conversa.
+- Arquitetura consistente: nenhuma implementação futura deve contrariar este documento sem gerar uma nova decisão registrada.
+- Compatibilidade entre IAs: qualquer modelo (Claude, ChatGPT, Gemini, DeepSeek, Qwen, Mistral) deve conseguir implementar uma funcionalidade lendo apenas os documentos de `/docs`, sem depender de memória de conversas anteriores.
+
+---
+
+*Fim do documento SDS.md*
